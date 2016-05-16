@@ -10,6 +10,9 @@
 		E20614831CE5EEEA001AB656 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20614821CE5EEEA001AB656 /* AppDelegate.swift */; };
 		E20614851CE5EEEA001AB656 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E20614841CE5EEEA001AB656 /* Assets.xcassets */; };
 		E20614881CE5EEEA001AB656 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = E20614861CE5EEEA001AB656 /* MainMenu.xib */; };
+		E20614931CE5F420001AB656 /* SharedCellsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20614911CE5F420001AB656 /* SharedCellsViewController.swift */; };
+		E20614941CE5F420001AB656 /* SharedCellsViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = E20614921CE5F420001AB656 /* SharedCellsViewController.xib */; };
+		E20614961CE5F4BD001AB656 /* EventMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20614951CE5F4BD001AB656 /* EventMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +21,9 @@
 		E20614841CE5EEEA001AB656 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E20614871CE5EEEA001AB656 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		E20614891CE5EEEA001AB656 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		E20614911CE5F420001AB656 /* SharedCellsViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SharedCellsViewController.swift; sourceTree = "<group>"; };
+		E20614921CE5F420001AB656 /* SharedCellsViewController.xib */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.xib; path = SharedCellsViewController.xib; sourceTree = "<group>"; };
+		E20614951CE5F4BD001AB656 /* EventMonitor.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EventMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +60,9 @@
 				E20614841CE5EEEA001AB656 /* Assets.xcassets */,
 				E20614861CE5EEEA001AB656 /* MainMenu.xib */,
 				E20614891CE5EEEA001AB656 /* Info.plist */,
+				E20614911CE5F420001AB656 /* SharedCellsViewController.swift */,
+				E20614921CE5F420001AB656 /* SharedCellsViewController.xib */,
+				E20614951CE5F4BD001AB656 /* EventMonitor.swift */,
 			);
 			path = SharedCells;
 			sourceTree = "<group>";
@@ -118,6 +127,7 @@
 			files = (
 				E20614851CE5EEEA001AB656 /* Assets.xcassets in Resources */,
 				E20614881CE5EEEA001AB656 /* MainMenu.xib in Resources */,
+				E20614941CE5F420001AB656 /* SharedCellsViewController.xib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -129,6 +139,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E20614831CE5EEEA001AB656 /* AppDelegate.swift in Sources */,
+				E20614961CE5F4BD001AB656 /* EventMonitor.swift in Sources */,
+				E20614931CE5F420001AB656 /* SharedCellsViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -231,7 +243,6 @@
 		E206148D1CE5EEEA001AB656 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = SharedCells/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
@@ -243,7 +254,6 @@
 		E206148E1CE5EEEA001AB656 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = SharedCells/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
