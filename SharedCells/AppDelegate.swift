@@ -94,26 +94,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         showPopover(self)
     }
     
-    func borrow11Cell() { borrowCell("1+1") }
-    func borrow31Cell() { borrowCell("3+1") }
-    func borrow51Cell() { borrowCell("5+1") }
-    func borrow71Cell() { borrowCell("6+1") }
-    func borrow10Cell() { borrowCell("1+0") }
-    func borrow30Cell() { borrowCell("3+0") }
-    func borrow50Cell() { borrowCell("5+0") }
-    func borrow70Cell() { borrowCell("7+0") }
+    func borrow11Cell() { borrowCell("1%2B1") }
+    func borrow31Cell() { borrowCell("3%2B1") }
+    func borrow51Cell() { borrowCell("5%2B1") }
+    func borrow71Cell() { borrowCell("6%2B1") }
+    func borrow10Cell() { borrowCell("1%2B0") }
+    func borrow30Cell() { borrowCell("3%2B0") }
+    func borrow50Cell() { borrowCell("5%2B0") }
+    func borrow70Cell() { borrowCell("7%2B0") }
     
     // Borrows cell for the user and for 60 minutes into the future
     func borrowCell(cellSpec: String) {
         let home = NSHomeDirectory()
         let sshKeyFilePath = home.stringByAppendingString("/.ssh/id_rsa.pub") as String
         let sshKey = try? NSString(contentsOfFile: sshKeyFilePath, encoding: NSUTF8StringEncoding)
-        request("\(wardenUrl)?duration=60&user=\(username)", method: "POST", stringData: sshKey! as String, callback: {_ in })
+        let url = "\(wardenUrl)?duration=60&user=\(username)&spec=\(cellSpec)"
+        self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil)
+        request(url, method: "POST", stringData: sshKey! as String, callback: { response in
+            self.showNotification("Cell is allocated and ready", text: "Reservation is valid for 60 minutes", action: nil)
+        })
     }
 
     // Returns cell currently leased by the user
     func returnCell(sender: AnyObject?) {
-        request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: {_ in })
+        self.showNotification("Returning cell", text: "Please wait for confirmation", action: nil)
+        request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: { response in
+            self.showNotification("Cell returned", text: "Thank you for cleaning up!", action: nil)
+        })
     }
 
     func updatePopover(data: NSString) {
