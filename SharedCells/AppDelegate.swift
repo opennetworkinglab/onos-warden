@@ -14,12 +14,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     @IBOutlet weak var window: NSWindow!
 
     let wardenUrl = "http://10.254.1.19:4321/"
-    let pollSeconds = 15.0
-
+    let pollSeconds = 30.0
+    let warnMinutes = 5
+    
     let username = NSUserName()
     let center = NSUserNotificationCenter.defaultUserNotificationCenter()
     let statusItem = NSStatusBar.systemStatusBar().statusItemWithLength(-2)
-    let menu = NSMenu()
     let popover = NSPopover()
 
     var timer: NSTimer?
@@ -35,12 +35,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         }
         
         popover.contentViewController = SharedCellsViewController(nibName: "SharedCellsViewController", bundle: nil)
-
+        
+        let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "View Cells", action: #selector(viewCells(_:)), keyEquivalent: "s"))
         menu.addItem(NSMenuItem.separatorItem())
-        menu.addItem(NSMenuItem(title: "Borrow 1+1 Cell", action: #selector(borrowSmallCell), keyEquivalent: "t"))
-        menu.addItem(NSMenuItem(title: "Borrow 3+1 Cell", action: #selector(borrowMediumCell), keyEquivalent: "m"))
-        menu.addItem(NSMenuItem(title: "Borrow 5+1 Cell", action: #selector(borrowLargeCell), keyEquivalent: "l"))
+        menu.addItem(NSMenuItem(title: "Borrow Standard Cell", action: #selector(borrow31Cell), keyEquivalent: "b"))
+        
+        let subMenuItem = NSMenuItem(title: "Borrow Custom Cell", action: nil, keyEquivalent: "")
+        menu.addItem(subMenuItem)
+        
+        let subMenu = NSMenu()
+        subMenu.addItem(NSMenuItem(title: "Borrow 1+1 Cell", action: #selector(borrow11Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 3+1 Cell", action: #selector(borrow31Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 5+1 Cell", action: #selector(borrow51Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 7+1 Cell", action: #selector(borrow71Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem.separatorItem())
+        subMenu.addItem(NSMenuItem(title: "Borrow 1+0 Cell", action: #selector(borrow10Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 3+0 Cell", action: #selector(borrow30Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 5+0 Cell", action: #selector(borrow50Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 7+0 Cell", action: #selector(borrow70Cell), keyEquivalent: ""))
+        menu.setSubmenu(subMenu, forItem: subMenuItem)
+
         menu.addItem(NSMenuItem.separatorItem())
         menu.addItem(NSMenuItem(title: "Return Cell", action: #selector(returnCell(_:)), keyEquivalent: "r"))
         menu.addItem(NSMenuItem.separatorItem())
@@ -58,12 +73,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             }
         }
         eventMonitor?.start()
+        
+        // self.showNotification("Hey there", text: "Whassup?", action: nil)
     }
 
     // Tear-down hook
     func applicationWillTerminate(aNotification: NSNotification) {
         // Insert code here to tear down your application
         timer!.invalidate()
+        center.removeAllDeliveredNotifications()
     }
 
     // Obtains data on cell status and displays it in a pop-up window
@@ -72,9 +90,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         showPopover(sender)
     }
     
-    func borrowSmallCell() { borrowCell("1+1") }
-    func borrowMediumCell() { borrowCell("3+1") }
-    func borrowLargeCell() { borrowCell("5+1") }
+    func borrow11Cell() { borrowCell("1+1") }
+    func borrow31Cell() { borrowCell("3+1") }
+    func borrow51Cell() { borrowCell("5+1") }
+    func borrow71Cell() { borrowCell("6+1") }
+    func borrow10Cell() { borrowCell("1+0") }
+    func borrow30Cell() { borrowCell("3+0") }
+    func borrow50Cell() { borrowCell("5+0") }
+    func borrow70Cell() { borrowCell("7+0") }
     
     // Borrows cell for the user and for 60 minutes into the future
     func borrowCell(cellSpec: String) {
@@ -113,14 +136,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         }
     }
     
-    func showNotification(remaining: Int) -> Void {
+    func showNotification(title: String, text: String, action: String?) -> Void {
         center.removeAllDeliveredNotifications()
         let notification = NSUserNotification()
-        notification.title = "Cell reservation is about to expire"
-        notification.informativeText = "You have \(remaining) minutes left"
-        notification.hasActionButton = true
-        notification.actionButtonTitle = "Extend"
-        
+        notification.title = title
+        notification.informativeText = text
+        notification.hasActionButton = action != nil
+        if notification.hasActionButton {
+            notification.actionButtonTitle = action!
+        }
         NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification(notification)
     }
     
@@ -130,7 +154,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     
     func userNotificationCenter(center: NSUserNotificationCenter, didActivateNotification notification: NSUserNotification) {
         if notification.activationType == .ActionButtonClicked {
-            borrowMediumCell() // lease extension ignores cell spec so just use this
+            borrow31Cell() // lease extension ignores cell spec so just use the standard
         }
     }
     
@@ -140,58 +164,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             if !record.hasPrefix("null") {
                 var fields = record.componentsSeparatedByString(",")
                 let remaining = fields.count > 3 ? Int(fields[3]) : 0
-                if remaining != nil && remaining < 5 {
-                    self.showNotification(remaining!)
+                if remaining != nil && remaining < self.warnMinutes {
+                    self.hadReservation = true
+                    self.showNotification("Cell reservation is about to expire",
+                                          text: "You have less than \(remaining! + 1) minutes left", action: "Extend")
                 }
+            } else if self.hadReservation {
+                self.hadReservation = false
+                self.showNotification("Cell reservation expired",
+                                      text: "The cell has been returned", action: nil)
             }
         })
     }
 
-    func get(urlPath: String, callback: (NSString) -> Void) {
-        let url: NSURL = NSURL(string: urlPath)!
-        let request = NSMutableURLRequest(URL: url)
-        let task = NSURLSession.sharedSession().dataTaskWithRequest(request) { data, response, error in
-            guard error == nil && data != nil else {
-                print("error = \(error)")
-                return
-            }
-            if let httpStatus = response as? NSHTTPURLResponse where httpStatus.statusCode != 200 {
-                print("status = \(httpStatus.statusCode)")
-                print("response = \(response)")
-            }
-            
-            callback(NSString(data: data!, encoding: NSUTF8StringEncoding)!)
-        }
-        task.resume()
-    }
     
+    // Web access helper methods
+    func get(urlPath: String, callback: (NSString) -> Void) {
+        request(urlPath, method: "GET", stringData: nil, callback: callback)
+    }
 
     func post(urlPath: String, stringData: String, callback: (NSString) -> Void) {
-        let url: NSURL = NSURL(string: urlPath)!
-        let request = NSMutableURLRequest(URL: url)
-        request.HTTPMethod = "POST"
-        
-        request.HTTPBody = stringData.dataUsingEncoding(NSUTF8StringEncoding)
-        let task = NSURLSession.sharedSession().dataTaskWithRequest(request) { data, response, error in
-            guard error == nil && data != nil else {
-                print("error = \(error)")
-                return
-            }
-            if let httpStatus = response as? NSHTTPURLResponse where httpStatus.statusCode != 200 {
-                print("status = \(httpStatus.statusCode)")
-                print("response = \(response)")
-            }
-            
-            callback(NSString(data: data!, encoding: NSUTF8StringEncoding)!)
-        }
-        task.resume()
+        request(urlPath, method: "POST", stringData: nil, callback: callback)
     }
-    
+
     func delete(urlPath: String, callback: (NSString) -> Void) {
+        request(urlPath, method: "DELETE", stringData: nil, callback: callback)
+    }
+
+    func request(urlPath: String, method: String, stringData: String?, callback: (NSString) -> Void) {
         let url: NSURL = NSURL(string: urlPath)!
         let request = NSMutableURLRequest(URL: url)
-        request.HTTPMethod = "DELETE"
-        
+        request.HTTPMethod = method
+        request.HTTPBody = stringData?.dataUsingEncoding(NSUTF8StringEncoding)
         let task = NSURLSession.sharedSession().dataTaskWithRequest(request) { data, response, error in
             guard error == nil && data != nil else {
                 print("error = \(error)")
