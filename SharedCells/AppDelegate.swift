@@ -90,7 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     // Obtains data on cell status and displays it in a pop-up window
     func viewCells(sender: AnyObject?) {
-        get("\(wardenUrl)/data", callback: updatePopover)
+        request("\(wardenUrl)/data", method: "GET", stringData: nil, callback: updatePopover)
         showPopover(self)
     }
     
@@ -108,16 +108,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         let home = NSHomeDirectory()
         let sshKeyFilePath = home.stringByAppendingString("/.ssh/id_rsa.pub") as String
         let sshKey = try? NSString(contentsOfFile: sshKeyFilePath, encoding: NSUTF8StringEncoding)
-        post("\(wardenUrl)?duration=60&user=\(username)", stringData: sshKey! as String, callback: {_ in })
+        request("\(wardenUrl)?duration=60&user=\(username)", method: "POST", stringData: sshKey! as String, callback: {_ in })
     }
 
     // Returns cell currently leased by the user
     func returnCell(sender: AnyObject?) {
-        delete("\(wardenUrl)?user=\(username)", callback: {_ in })
+        request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: {_ in })
     }
 
     func updatePopover(data: NSString) {
-        print(data);
         cellsTableController?.updateCellData(data)
     }
     
@@ -168,7 +167,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     }
     
     func checkForExpiration() {
-        get("\(wardenUrl)/data?user=\(username)", callback: { (data) in
+        request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
             let record = data.stringByTrimmingCharactersInSet(NSCharacterSet.newlineCharacterSet())
             if !record.hasPrefix("null") {
                 var fields = record.componentsSeparatedByString(",")
@@ -186,20 +185,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         })
     }
 
-    
-    // Web access helper methods
-    func get(urlPath: String, callback: (NSString) -> Void) {
-        request(urlPath, method: "GET", stringData: nil, callback: callback)
-    }
-
-    func post(urlPath: String, stringData: String, callback: (NSString) -> Void) {
-        request(urlPath, method: "POST", stringData: nil, callback: callback)
-    }
-
-    func delete(urlPath: String, callback: (NSString) -> Void) {
-        request(urlPath, method: "DELETE", stringData: nil, callback: callback)
-    }
-
     func request(urlPath: String, method: String, stringData: String?, callback: (NSString) -> Void) {
         let url: NSURL = NSURL(string: urlPath)!
         let request = NSMutableURLRequest(URL: url)
@@ -211,8 +196,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
                 return
             }
             if let httpStatus = response as? NSHTTPURLResponse where httpStatus.statusCode != 200 {
-                print("status = \(httpStatus.statusCode)")
-                print("response = \(response)")
+                print("status = \(httpStatus.statusCode)\nresponse = \(response)")
             }
             
             callback(NSString(data: data!, encoding: NSUTF8StringEncoding)!)
