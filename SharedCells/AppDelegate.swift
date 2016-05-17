@@ -9,19 +9,24 @@
 import Cocoa
 
 @NSApplicationMain
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDelegate {
 
     @IBOutlet weak var window: NSWindow!
 
-    let statusItem = NSStatusBar.systemStatusBar().statusItemWithLength(-2)
-
     let wardenUrl = "http://10.254.1.19:4321/"
+    let pollSeconds = 15.0
+
+    let username = NSUserName()
+    let center = NSUserNotificationCenter.defaultUserNotificationCenter()
+    let statusItem = NSStatusBar.systemStatusBar().statusItemWithLength(-2)
     let menu = NSMenu()
     let popover = NSPopover()
 
-    var username = NSUserName()
+    var timer: NSTimer?
     var eventMonitor: EventMonitor?
-  
+
+    var hadReservation = false
+
     // Start-up hook
     func applicationDidFinishLaunching(aNotification: NSNotification) {
         if let button = statusItem.button {
@@ -42,6 +47,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate), keyEquivalent: "q"))
         statusItem.menu = menu
         
+        center.delegate = self
+        timer = NSTimer.scheduledTimerWithTimeInterval(pollSeconds, target: self,
+                                                       selector: #selector(checkForExpiration),
+                                                       userInfo: nil, repeats: true)
+        
         eventMonitor = EventMonitor(mask: .LeftMouseDownMask) { [unowned self] event in
             if self.popover.shown {
                 self.closePopover(event)
@@ -53,6 +63,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // Tear-down hook
     func applicationWillTerminate(aNotification: NSNotification) {
         // Insert code here to tear down your application
+        timer!.invalidate()
     }
 
     // Obtains data on cell status and displays it in a pop-up window
@@ -65,7 +76,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func borrowMediumCell() { borrowCell("3+1") }
     func borrowLargeCell() { borrowCell("5+1") }
     
-    // Borrow cell for the user and for 60 minutes into the future
+    // Borrows cell for the user and for 60 minutes into the future
     func borrowCell(cellSpec: String) {
         let home = NSHomeDirectory()
         let sshKeyFilePath = home.stringByAppendingString("/.ssh/id_rsa.pub") as String
@@ -73,7 +84,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         post("\(wardenUrl)?duration=60&user=\(username)", stringData: sshKey! as String, callback: updatePopover)
     }
 
-    // Return cell currently leased by the user
+    // Returns cell currently leased by the user
     func returnCell(sender: AnyObject?) {
         delete("\(wardenUrl)?user=\(username)", callback: updatePopover)
     }
@@ -102,7 +113,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    func showNotification(remaining: Int) -> Void {
+        center.removeAllDeliveredNotifications()
+        let notification = NSUserNotification()
+        notification.title = "Cell reservation is about to expire"
+        notification.informativeText = "You have \(remaining) minutes left"
+        notification.hasActionButton = true
+        notification.actionButtonTitle = "Extend"
+        
+        NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification(notification)
+    }
     
+    func userNotificationCenter(center: NSUserNotificationCenter, shouldPresentNotification notification: NSUserNotification) -> Bool {
+        return true
+    }
+    
+    func userNotificationCenter(center: NSUserNotificationCenter, didActivateNotification notification: NSUserNotification) {
+        if notification.activationType == .ActionButtonClicked {
+            borrowMediumCell() // lease extension ignores cell spec so just use this
+        }
+    }
+    
+    func checkForExpiration() {
+        get("\(wardenUrl)/data?user=\(username)", callback: { (data) in
+            let record = data.stringByTrimmingCharactersInSet(NSCharacterSet.newlineCharacterSet())
+            if !record.hasPrefix("null") {
+                var fields = record.componentsSeparatedByString(",")
+                let remaining = fields.count > 3 ? Int(fields[3]) : 0
+                if remaining != nil && remaining < 5 {
+                    self.showNotification(remaining!)
+                }
+            }
+        })
+    }
+
     func get(urlPath: String, callback: (NSString) -> Void) {
         let url: NSURL = NSURL(string: urlPath)!
         let request = NSMutableURLRequest(URL: url)
@@ -121,6 +165,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         task.resume()
     }
     
+
     func post(urlPath: String, stringData: String, callback: (NSString) -> Void) {
         let url: NSURL = NSURL(string: urlPath)!
         let request = NSMutableURLRequest(URL: url)

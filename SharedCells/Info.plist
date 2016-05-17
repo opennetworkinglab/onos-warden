@@ -32,11 +32,15 @@
 	<string>MainMenu</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>CFBundleDisplayName</key>
+	<string></string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSUserNotificationAlertStyle</key>
+	<string>alert</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
