@@ -14,7 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     @IBOutlet weak var window: NSWindow!
 
     let wardenUrl = "http://10.254.1.19:4321/"
-    let pollSeconds = 30.0
+    let pollSeconds = 60.0
     let warnMinutes = 5
     
     let username = NSUserName()
@@ -23,9 +23,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     let popover = NSPopover()
 
     var timer: NSTimer?
+    var closeTimer: NSTimer?
     var eventMonitor: EventMonitor?
 
     var hadReservation = false
+    var cellsTableController: SharedCellsViewController?
 
     // Start-up hook
     func applicationDidFinishLaunching(aNotification: NSNotification) {
@@ -63,11 +65,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         statusItem.menu = menu
         
         center.delegate = self
+        cellsTableController = popover.contentViewController as? SharedCellsViewController
+        
         timer = NSTimer.scheduledTimerWithTimeInterval(pollSeconds, target: self,
                                                        selector: #selector(checkForExpiration),
                                                        userInfo: nil, repeats: true)
         
-        eventMonitor = EventMonitor(mask: .LeftMouseDownMask) { [unowned self] event in
+        eventMonitor = EventMonitor(mask: [.LeftMouseDownMask, .RightMouseDownMask]) { [unowned self] event in
             if self.popover.shown {
                 self.closePopover(event)
             }
@@ -86,8 +90,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     // Obtains data on cell status and displays it in a pop-up window
     func viewCells(sender: AnyObject?) {
-        get(wardenUrl, callback: updatePopover)
-        showPopover(sender)
+        get("\(wardenUrl)/data", callback: updatePopover)
+        showPopover(self)
     }
     
     func borrow11Cell() { borrowCell("1+1") }
@@ -104,26 +108,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         let home = NSHomeDirectory()
         let sshKeyFilePath = home.stringByAppendingString("/.ssh/id_rsa.pub") as String
         let sshKey = try? NSString(contentsOfFile: sshKeyFilePath, encoding: NSUTF8StringEncoding)
-        post("\(wardenUrl)?duration=60&user=\(username)", stringData: sshKey! as String, callback: updatePopover)
+        post("\(wardenUrl)?duration=60&user=\(username)", stringData: sshKey! as String, callback: {_ in })
     }
 
     // Returns cell currently leased by the user
     func returnCell(sender: AnyObject?) {
-        delete("\(wardenUrl)?user=\(username)", callback: updatePopover)
+        delete("\(wardenUrl)?user=\(username)", callback: {_ in })
     }
 
     func updatePopover(data: NSString) {
         print(data);
+        cellsTableController?.updateCellData(data)
     }
     
     func showPopover(sender: AnyObject?) {
         if let button = statusItem.button {
             popover.showRelativeToRect(button.bounds, ofView: button, preferredEdge: NSRectEdge.MinY)
+            closeTimer = NSTimer.scheduledTimerWithTimeInterval(10.0, target: self,
+                                                                selector: #selector(closePopover(_:)),
+                                                                userInfo: nil, repeats: false)
         }
         eventMonitor?.start()
     }
     
     func closePopover(sender: AnyObject?) {
+        closeTimer?.invalidate()
         popover.performClose(sender)
         eventMonitor?.stop()
     }
