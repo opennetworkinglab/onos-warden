@@ -159,6 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         notification.hasActionButton = action != nil
         if notification.hasActionButton {
             notification.actionButtonTitle = action!
+            notification.soundName = NSUserNotificationDefaultSoundName
         }
         NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification(notification)
     }
