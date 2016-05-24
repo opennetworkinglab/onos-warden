@@ -15,6 +15,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     let wardenUrl = "http://10.254.1.19:4321/"
     let pollSeconds = 60.0
+    let showSeconds = 7.0
     let warnMinutes = 5
     
     let username = NSUserName()
@@ -24,8 +25,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     var timer: NSTimer?
     var closeTimer: NSTimer?
+    var notificationTimer: NSTimer?
     var eventMonitor: EventMonitor?
-
+    var notification: NSUserNotification?
+    
     var hadReservation = false
     var cellsTableController: SharedCellsViewController?
 
@@ -77,14 +80,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             }
         }
         eventMonitor?.start()
-        
-        // self.showNotification("Hey there", text: "Whassup?", action: nil)
     }
 
     // Tear-down hook
     func applicationWillTerminate(aNotification: NSNotification) {
         // Insert code here to tear down your application
-        timer!.invalidate()
+        timer?.invalidate()
         center.removeAllDeliveredNotifications()
     }
 
@@ -105,44 +106,59 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     
     // Borrows cell for the user and for 60 minutes into the future
     func borrowCell(cellSpec: String) {
-        let home = NSHomeDirectory()
-        let sshKeyFilePath = home.stringByAppendingString("/.ssh/id_rsa.pub") as String
-        let sshKey = try? NSString(contentsOfFile: sshKeyFilePath, encoding: NSUTF8StringEncoding)
-        let url = "\(wardenUrl)?duration=60&user=\(username)&spec=\(cellSpec)"
-        self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil)
-        request(url, method: "POST", stringData: sshKey! as String, callback: { response in
-            self.showNotification("Cell is allocated and ready", text: "Reservation is valid for 60 minutes", action: nil)
+        self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil, sound: false)
+        request("\(wardenUrl)?duration=60&user=\(username)&spec=\(cellSpec)", method: "POST",
+                stringData: userKey()! as String, callback: { response in
+            self.notification = self.showNotification("Cell is allocated and ready",
+                                                     text: "Reservation is valid for 60 minutes", action: nil, sound: false)
+            self.scheduleNotificationDismissal()
         })
     }
 
     // Returns cell currently leased by the user
     func returnCell(sender: AnyObject?) {
-        self.showNotification("Returning cell", text: "Please wait for confirmation", action: nil)
+        hadReservation = false
+        self.showNotification("Returning cell", text: "Tearing down the environment", action: nil, sound: false)
         request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: { response in
-            self.showNotification("Cell returned", text: "Thank you for cleaning up!", action: nil)
+            self.notification = self.showNotification("Cell returned", text: "Thank you for cleaning up!", action: nil, sound: false)
+            self.scheduleNotificationDismissal()
         })
+    }
+
+    func extendLease() {
+        request("\(wardenUrl)?duration=60&user=\(username)", method: "POST",
+                stringData: userKey()! as String, callback: { response in
+            self.notification = self.showNotification("Cell lease extended", text: "Reservation is valid for 60 minutes", action: nil, sound: false)
+            self.scheduleNotificationDismissal()
+        })
+    }
+    
+    func userKey() -> NSString? {
+        let home = NSHomeDirectory()
+        let sshKeyFilePath = home.stringByAppendingString("/.ssh/id_rsa.pub") as String
+        return try? NSString(contentsOfFile: sshKeyFilePath, encoding: NSUTF8StringEncoding)
     }
 
     func updatePopover(data: NSString) {
         cellsTableController?.updateCellData(data)
     }
-    
+
     func showPopover(sender: AnyObject?) {
         if let button = statusItem.button {
             popover.showRelativeToRect(button.bounds, ofView: button, preferredEdge: NSRectEdge.MinY)
-            closeTimer = NSTimer.scheduledTimerWithTimeInterval(10.0, target: self,
+            closeTimer = NSTimer.scheduledTimerWithTimeInterval(showSeconds, target: self,
                                                                 selector: #selector(closePopover(_:)),
                                                                 userInfo: nil, repeats: false)
         }
         eventMonitor?.start()
     }
-    
+
     func closePopover(sender: AnyObject?) {
         closeTimer?.invalidate()
         popover.performClose(sender)
         eventMonitor?.stop()
     }
-    
+
     func togglePopover(sender: AnyObject?) {
         if popover.shown {
             closePopover(sender)
@@ -150,8 +166,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             showPopover(sender)
         }
     }
+
+    func scheduleNotificationDismissal() {
+        closeTimer = NSTimer(timeInterval: showSeconds, target: self, selector: #selector(dismissNotification), userInfo: nil, repeats: false)
+        NSRunLoop.mainRunLoop().addTimer(closeTimer!, forMode: NSRunLoopCommonModes)
+    }
     
-    func showNotification(title: String, text: String, action: String?) -> Void {
+    func dismissNotification() {
+        if notification != nil {
+            center.removeDeliveredNotification(notification!)
+        }
+    }
+
+    func showNotification(title: String, text: String, action: String?, sound: Bool) -> NSUserNotification {
         center.removeAllDeliveredNotifications()
         let notification = NSUserNotification()
         notification.title = title
@@ -159,21 +186,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         notification.hasActionButton = action != nil
         if notification.hasActionButton {
             notification.actionButtonTitle = action!
+        }
+        if sound {
             notification.soundName = NSUserNotificationDefaultSoundName
         }
-        NSUserNotificationCenter.defaultUserNotificationCenter().deliverNotification(notification)
+
+        center.scheduleNotification(notification)
+        return notification
     }
-    
+
     func userNotificationCenter(center: NSUserNotificationCenter, shouldPresentNotification notification: NSUserNotification) -> Bool {
         return true
     }
-    
+
     func userNotificationCenter(center: NSUserNotificationCenter, didActivateNotification notification: NSUserNotification) {
         if notification.activationType == .ActionButtonClicked {
-            borrow31Cell() // lease extension ignores cell spec so just use the standard
+            extendLease()
         }
     }
-    
+
     func checkForExpiration() {
         request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
             let record = data.stringByTrimmingCharactersInSet(NSCharacterSet.newlineCharacterSet())
@@ -183,12 +214,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
                 if remaining != nil && remaining < self.warnMinutes {
                     self.hadReservation = true
                     self.showNotification("Cell reservation is about to expire",
-                                          text: "You have less than \(remaining! + 1) minutes left", action: "Extend")
+                                          text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
                 }
             } else if self.hadReservation {
                 self.hadReservation = false
-                self.showNotification("Cell reservation expired",
-                                      text: "The cell has been returned", action: nil)
+                self.showNotification("Cell reservation expired", text: "The cell has been returned", action: nil, sound: true)
             }
         })
     }
