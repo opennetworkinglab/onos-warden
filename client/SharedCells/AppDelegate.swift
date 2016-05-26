@@ -14,7 +14,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     @IBOutlet weak var window: NSWindow!
 
     let wardenUrl = "http://10.254.1.19:4321/"
-    let pollSeconds = 60.0
+    let pollSeconds = 30.0
     let showSeconds = 7.0
     let warnMinutes = 5
     
@@ -91,7 +91,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     // Obtains data on cell status and displays it in a pop-up window
     func viewCells(sender: AnyObject?) {
-        request("\(wardenUrl)/data", method: "GET", stringData: nil, callback: updatePopover)
+        request("\(wardenUrl)/data", method: "GET", stringData: nil, callback: updatePopover, errorCallback: {
+            self.showNotification("Unable to query cells", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+        })
         showPopover(self)
     }
     
@@ -112,7 +114,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             self.notification = self.showNotification("Cell is allocated and ready",
                                                      text: "Reservation is valid for 60 minutes", action: nil, sound: false)
             self.scheduleNotificationDismissal()
-        })
+            }, errorCallback: {
+                self.showNotification("Unable to borrow cell", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+            })
     }
 
     // Returns cell currently leased by the user
@@ -122,17 +126,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: { response in
             self.notification = self.showNotification("Cell returned", text: "Thank you for cleaning up!", action: nil, sound: false)
             self.scheduleNotificationDismissal()
-        })
+            }, errorCallback: {
+                self.showNotification("Unable to return cell", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+            })
     }
 
+    // Extends the current cell lease.
     func extendLease() {
         request("\(wardenUrl)?duration=60&user=\(username)", method: "POST",
                 stringData: userKey()! as String, callback: { response in
             self.notification = self.showNotification("Cell lease extended", text: "Reservation is valid for 60 minutes", action: nil, sound: false)
             self.scheduleNotificationDismissal()
-        })
+            }, errorCallback: {
+                self.showNotification("Unable to extend lease", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+            })
     }
     
+    // Extracts the user's public key from the ~/.ssh folder.
     func userKey() -> NSString? {
         let home = NSHomeDirectory()
         let sshKeyFilePath = home.stringByAppendingString("/.ssh/id_rsa.pub") as String
@@ -167,17 +177,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         }
     }
 
+    // Schedules dismissal of a notification using the main run loop.
     func scheduleNotificationDismissal() {
         closeTimer = NSTimer(timeInterval: showSeconds, target: self, selector: #selector(dismissNotification), userInfo: nil, repeats: false)
         NSRunLoop.mainRunLoop().addTimer(closeTimer!, forMode: NSRunLoopCommonModes)
     }
     
+    // Dismisses a notification if there is one pending.
     func dismissNotification() {
         if notification != nil {
             center.removeDeliveredNotification(notification!)
         }
     }
 
+    // Shows a user notification using the supplied information.
     func showNotification(title: String, text: String, action: String?, sound: Bool) -> NSUserNotification {
         center.removeAllDeliveredNotifications()
         let notification = NSUserNotification()
@@ -195,16 +208,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         return notification
     }
 
+    // Delegate callbacks
     func userNotificationCenter(center: NSUserNotificationCenter, shouldPresentNotification notification: NSUserNotification) -> Bool {
         return true
     }
 
+    // Delegate callback for the user notification action.
     func userNotificationCenter(center: NSUserNotificationCenter, didActivateNotification notification: NSUserNotification) {
         if notification.activationType == .ActionButtonClicked {
             extendLease()
         }
     }
 
+    // Checks the current reservation for impending expiration. 
+    // If expiration is imminent, it allows user to extend the reservation.
     func checkForExpiration() {
         request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
             let record = data.stringByTrimmingCharactersInSet(NSCharacterSet.newlineCharacterSet())
@@ -212,18 +229,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
                 var fields = record.componentsSeparatedByString(",")
                 let remaining = fields.count > 3 ? Int(fields[3]) : 0
                 if remaining != nil && remaining < self.warnMinutes {
-                    self.hadReservation = true
                     self.showNotification("Cell reservation is about to expire",
                                           text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
+                } else if remaining != nil && !self.hadReservation {
+                    self.notification = self.showNotification("Cell is allocated and ready",
+                                                              text: "Reservation is valid for \(remaining!) minutes", action: nil, sound: false)
+                    self.scheduleNotificationDismissal()
                 }
+                self.hadReservation = true
+
             } else if self.hadReservation {
-                self.hadReservation = false
                 self.showNotification("Cell reservation expired", text: "The cell has been returned", action: nil, sound: true)
+                self.hadReservation = false
             }
-        })
+            }, errorCallback: {})
     }
 
-    func request(urlPath: String, method: String, stringData: String?, callback: (NSString) -> Void) {
+    // Issues a web-request against the specified URL
+    func request(urlPath: String, method: String, stringData: String?, callback: (NSString) -> Void, errorCallback: () -> Void) {
         let url: NSURL = NSURL(string: urlPath)!
         let request = NSMutableURLRequest(URL: url)
         request.HTTPMethod = method
@@ -231,6 +254,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         let task = NSURLSession.sharedSession().dataTaskWithRequest(request) { data, response, error in
             guard error == nil && data != nil else {
                 print("error = \(error)")
+                errorCallback()
                 return
             }
             if let httpStatus = response as? NSHTTPURLResponse where httpStatus.statusCode != 200 {

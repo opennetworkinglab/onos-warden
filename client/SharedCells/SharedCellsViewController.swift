@@ -18,6 +18,7 @@ class SharedCellsViewController: NSViewController {
         super.viewDidLoad()
         tableView.setDelegate(self)
         tableView.setDataSource(self)
+        tableView.selectionHighlightStyle = .None
     }
     
     func updateCellData(newCellData: NSString) {

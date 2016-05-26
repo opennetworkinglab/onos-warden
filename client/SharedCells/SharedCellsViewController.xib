@@ -203,7 +203,17 @@
                 <constraint firstAttribute="bottom" secondItem="Uib-pq-qnv" secondAttribute="bottom" id="XqR-kD-dV6"/>
                 <constraint firstAttribute="trailing" secondItem="Uib-pq-qnv" secondAttribute="trailing" id="ghT-d7-feZ"/>
             </constraints>
-            <point key="canvasLocation" x="361" y="340"/>
+            <point key="canvasLocation" x="425" y="202"/>
         </customView>
+        <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" id="9dN-UD-ory">
+            <rect key="frame" x="0.0" y="0.0" width="163" height="26"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+            <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" sendsActionOnEndEditing="YES" alignment="center" title="Fetching cell status..." id="UZt-YA-YeO">
+                <font key="font" metaFont="system"/>
+                <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+            </textFieldCell>
+            <point key="canvasLocation" x="415.5" y="215"/>
+        </textField>
     </objects>
 </document>
