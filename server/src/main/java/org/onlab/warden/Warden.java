@@ -33,11 +33,13 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -57,6 +59,7 @@ class Warden {
     private static final int DEFAULT_MINUTES = 60;
 
     private static final String DEFAULT_SPEC = "3+1";
+    private static final String SSH_COMMAND = "ssh -o ConnectTimeout=5";
 
     private final File log = new File("warden.log");
 
@@ -74,7 +77,9 @@ class Warden {
      * Creates a new cell warden.
      */
     Warden() {
-        reserved.mkdirs();
+        if (reserved.mkdirs()) {
+            System.out.println("Created " + reserved + " directory");
+        }
         random.setSeed(System.currentTimeMillis());
         Timer timer = new Timer("cell-pruner", true);
         timer.schedule(new Reposessor(), MINUTE / 4, MINUTE / 2);
@@ -217,8 +222,24 @@ class Warden {
 
         List<ServerInfo> servers = new ArrayList<>(load.values());
         servers.sort((a, b) -> b.load - a.load);
-        ServerInfo server = servers.get(0);
-        return server.cells.get(random.nextInt(server.cells.size())).cellName;
+        for (ServerInfo server : servers) {
+            if (isAvailable(server)) {
+                return server.cells.get(random.nextInt(server.cells.size())).cellName;
+            }
+        }
+        throw new IllegalStateException("Unable to find available cell");
+    }
+
+    /**
+     * Determines whether the specified cell server is available.
+     *
+     * @param server cell server address
+     * @return true if available, false otherwise
+     */
+    private boolean isAvailable(ServerInfo server) {
+        String key = Integer.toString(random.nextInt());
+        String result = exec(String.format("%s %s echo %s", SSH_COMMAND, server.hostName, key));
+        return result != null && result.contains(key);
     }
 
     /**
@@ -259,8 +280,8 @@ class Warden {
      */
     private String getCellDefinition(String cellName) {
         CellInfo cellInfo = getCellInfo(cellName);
-        return exec(String.format("ssh %s warden/bin/cell-def %s",
-                                  cellInfo.hostName, cellInfo.cellName));
+        return exec(String.format("%s %s warden/bin/cell-def %s",
+                                  SSH_COMMAND, cellInfo.hostName, cellInfo.cellName));
     }
 
     /**
@@ -281,8 +302,8 @@ class Warden {
      */
     private void createCell(Reservation reservation, String sshKey) {
         CellInfo cellInfo = getCellInfo(reservation.cellName);
-        String cmd = String.format("ssh %s warden/bin/create-cell %s %s %s %s",
-                                   cellInfo.hostName, cellInfo.cellName,
+        String cmd = String.format("%s %s warden/bin/create-cell %s %s %s %s",
+                                   SSH_COMMAND, cellInfo.hostName, cellInfo.cellName,
                                    cellInfo.ipPrefix, reservation.cellSpec, sshKey);
         exec(cmd);
     }
@@ -294,7 +315,7 @@ class Warden {
      */
     private void destroyCell(Reservation reservation) {
         CellInfo cellInfo = getCellInfo(reservation.cellName);
-        exec(String.format("ssh %s warden/bin/destroy-cell %s %s",
+        exec(String.format("%s %s warden/bin/destroy-cell %s %s", SSH_COMMAND,
                            cellInfo.hostName, cellInfo.cellName, reservation.cellSpec));
     }
 
@@ -355,6 +376,7 @@ class Warden {
     // Carrier of cell server information
     private final class ServerInfo {
         final String hostName;
+        boolean isAvailable = false;
         int load = 0;
         List<CellInfo> cells = Lists.newArrayList();
 

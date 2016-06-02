@@ -14,7 +14,7 @@
 
 WARDEN_USER="sdn"
 WARDEN_HOME="/home/$WARDEN_USER/warden"
-WARDEN_VERSION="1.6.0-SNAPSHOT"
+WARDEN_VERSION="1.0-SNAPSHOT"
 DEBUG="-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
 
 cd $WARDEN_HOME
