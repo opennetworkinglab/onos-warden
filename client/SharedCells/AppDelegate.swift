@@ -30,6 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     var notification: NSUserNotification?
     
     var hadReservation = false
+    var pendingAction = false
     var cellsTableController: SharedCellsViewController?
 
     // Start-up hook
@@ -109,11 +110,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     // Borrows cell for the user and for 60 minutes into the future
     func borrowCell(cellSpec: String) {
         self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil, sound: false)
+        pendingAction = true
         request("\(wardenUrl)?duration=60&user=\(username)&spec=\(cellSpec)", method: "POST",
                 stringData: userKey()! as String, callback: { response in
             self.notification = self.showNotification("Cell is allocated and ready",
                                                      text: "Reservation is valid for 60 minutes", action: nil, sound: false)
             self.scheduleNotificationDismissal()
+            self.pendingAction = false
             }, errorCallback: {
                 self.showNotification("Unable to borrow cell", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
             })
@@ -122,10 +125,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     // Returns cell currently leased by the user
     func returnCell(sender: AnyObject?) {
         hadReservation = false
+        pendingAction = true
         self.showNotification("Returning cell", text: "Tearing down the environment", action: nil, sound: false)
         request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: { response in
             self.notification = self.showNotification("Cell returned", text: "Thank you for cleaning up!", action: nil, sound: false)
             self.scheduleNotificationDismissal()
+            self.pendingAction = false
             }, errorCallback: {
                 self.showNotification("Unable to return cell", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
             })
@@ -228,10 +233,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             if !record.hasPrefix("null") {
                 var fields = record.componentsSeparatedByString(",")
                 let remaining = fields.count > 3 ? Int(fields[3]) : 0
-                if remaining != nil && remaining < self.warnMinutes {
+                if remaining != nil && remaining < self.warnMinutes && !self.pendingAction {
                     self.showNotification("Cell reservation is about to expire",
                                           text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
-                } else if remaining != nil && !self.hadReservation {
+                } else if remaining != nil && !self.hadReservation && !self.pendingAction {
                     self.notification = self.showNotification("Cell is allocated and ready",
                                                               text: "Reservation is valid for \(remaining!) minutes", action: nil, sound: false)
                     self.scheduleNotificationDismissal()
