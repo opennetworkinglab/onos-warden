@@ -216,7 +216,7 @@ class Warden {
 
         cells.stream().map(this::getCellInfo)
                 .forEach(info -> load.compute(info.hostName, (k, v) -> v == null ?
-                        new ServerInfo(info.hostName) : v.bumpLoad(info)));
+                        new ServerInfo(info.hostName, info) : v.bumpLoad(info)));
 
         List<ServerInfo> servers = new ArrayList<>(load.values());
         servers.sort((a, b) -> b.load - a.load);
@@ -378,8 +378,9 @@ class Warden {
         int load = 0;
         List<CellInfo> cells = Lists.newArrayList();
 
-        private ServerInfo(String hostName) {
+        private ServerInfo(String hostName, CellInfo info) {
             this.hostName = hostName;
+            bumpLoad(info);
         }
 
         private ServerInfo bumpLoad(CellInfo info) {
