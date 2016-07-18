@@ -174,7 +174,7 @@ class Warden {
         checkNotNull(userName, USER_NOT_NULL);
         checkArgument(userName.matches("[\\w.-]+"), "Invalid user name %s", userName);
         checkNotNull(sshKey, KEY_NOT_NULL);
-        checkArgument(minutes < MAX_MINUTES, "Number of minutes must be less than %d", MAX_MINUTES);
+        checkArgument(minutes <= MAX_MINUTES, "Number of minutes must be less than %d", MAX_MINUTES);
         checkArgument(minutes >= 0, "Number of minutes must be non-negative");
         checkArgument(cellSpec == null || cellSpec.matches("[\\d]\\+[0-1]"),
                       "Invalid cell spec string %s", cellSpec);
