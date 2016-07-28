@@ -52,9 +52,9 @@ class Warden {
     private static final String UTF_8 = "UTF-8";
 
     private static final long TIMEOUT = 10; // 10 seconds
-    private static final int MAX_MINUTES = 240; // 4 hours max
+    private static final int MAX_MINUTES = 1_440; // 24 hours max
     private static final int MINUTE = 60_000; // 1 minute
-    private static final int DEFAULT_MINUTES = 60;
+    private static final int DEFAULT_MINUTES = 120; // 2 hours
 
     private static final String DEFAULT_SPEC = "3+1";
     private static final String SSH_COMMAND = "ssh -o ConnectTimeout=5";

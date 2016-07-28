@@ -1,0 +1,5 @@
+#!/bin/bash
+# Script to install the warden on the CELL_WARDEN machine
+
+scp target/onlab-warden-*.jar sdn@$CELL_WARDEN:warden/
+

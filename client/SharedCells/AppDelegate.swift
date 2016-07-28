@@ -17,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     let pollSeconds = 30.0
     let showSeconds = 7.0
     let warnMinutes = 5
+    let defaultDurationMinutes = 120 // minutes
     
     let username = NSUserName()
     let center = NSUserNotificationCenter.defaultUserNotificationCenter()
@@ -107,14 +108,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     func borrow50Cell() { borrowCell("5%2B0") }
     func borrow70Cell() { borrowCell("7%2B0") }
     
-    // Borrows cell for the user and for 60 minutes into the future
+    // Borrows cell, or extends existing reservation, for the user and for default number of minutes into the future
     func borrowCell(cellSpec: String) {
         self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil, sound: false)
         pendingAction = true
-        request("\(wardenUrl)?duration=60&user=\(username)&spec=\(cellSpec)", method: "POST",
+        request("\(wardenUrl)?duration=\(defaultDurationMinutes)&user=\(username)&spec=\(cellSpec)", method: "POST",
                 stringData: userKey()! as String, callback: { response in
             self.notification = self.showNotification("Cell is allocated and ready",
-                                                     text: "Reservation is valid for 60 minutes", action: nil, sound: false)
+                                                     text: "Reservation is valid for \(self.defaultDurationMinutes) minutes", action: nil, sound: false)
             self.scheduleNotificationDismissal()
             self.pendingAction = false
             }, errorCallback: {
@@ -138,9 +139,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     // Extends the current cell lease.
     func extendLease() {
-        request("\(wardenUrl)?duration=60&user=\(username)", method: "POST",
+        request("\(wardenUrl)?duration=\(defaultDurationMinutes)&user=\(username)", method: "POST",
                 stringData: userKey()! as String, callback: { response in
-            self.notification = self.showNotification("Cell lease extended", text: "Reservation is valid for 60 minutes", action: nil, sound: false)
+            self.notification = self.showNotification("Cell lease extended", text: "Reservation is valid for \(self.defaultDurationMinutes) minutes", action: nil, sound: false)
             self.scheduleNotificationDismissal()
             }, errorCallback: {
                 self.showNotification("Unable to extend lease", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
