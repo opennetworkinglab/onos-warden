@@ -24,6 +24,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     let statusItem = NSStatusBar.systemStatusBar().statusItemWithLength(-2)
     let popover = NSPopover()
 
+    var button: NSStatusBarButton?
     var timer: NSTimer?
     var closeTimer: NSTimer?
     var notificationTimer: NSTimer?
@@ -36,9 +37,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     // Start-up hook
     func applicationDidFinishLaunching(aNotification: NSNotification) {
-        if let button = statusItem.button {
-            button.image = NSImage(named: "Image")
-            button.action = #selector(AppDelegate.togglePopover(_:))
+        button = statusItem.button
+        if (button != nil) {
+            button?.image = NSImage(named: "Image")
+            button?.action = #selector(AppDelegate.togglePopover(_:))
         }
         
         popover.contentViewController = SharedCellsViewController(nibName: "SharedCellsViewController", bundle: nil)
@@ -82,6 +84,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             }
         }
         eventMonitor?.start()
+        checkStatus()
     }
 
     // Tear-down hook
@@ -127,6 +130,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     func returnCell(sender: AnyObject?) {
         hadReservation = false
         pendingAction = true
+        self.button?.image = NSImage(named: "Image")
         self.showNotification("Returning cell", text: "Tearing down the environment", action: nil, sound: false)
         request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: { response in
             self.notification = self.showNotification("Cell returned", text: "Thank you for cleaning up!", action: nil, sound: false)
@@ -225,8 +229,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
             extendLease()
         }
     }
-
-    // Checks the current reservation for impending expiration. 
+    
+    // Checks the current reservation for impending expiration.
     // If expiration is imminent, it allows user to extend the reservation.
     func checkForExpiration() {
         request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
@@ -236,17 +240,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
                 let remaining = fields.count > 3 ? Int(fields[3]) : 0
                 if remaining != nil && remaining < self.warnMinutes && !self.pendingAction {
                     self.showNotification("Cell reservation is about to expire",
-                                          text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
+                        text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
                 } else if remaining != nil && !self.hadReservation && !self.pendingAction {
                     self.notification = self.showNotification("Cell is allocated and ready",
-                                                              text: "Reservation is valid for \(remaining!) minutes", action: nil, sound: false)
+                        text: "Reservation is valid for \(remaining!) minutes", action: nil, sound: false)
                     self.scheduleNotificationDismissal()
                 }
                 self.hadReservation = true
-
+                self.button?.image = NSImage(named: "Image-Reservation")
+                
             } else if self.hadReservation {
                 self.showNotification("Cell reservation expired", text: "The cell has been returned", action: nil, sound: true)
                 self.hadReservation = false
+                self.button?.image = NSImage(named: "Image")
+            }
+            }, errorCallback: {})
+    }
+
+    // Checks the current reservation status.
+    func checkStatus() {
+        request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
+            let record = data.stringByTrimmingCharactersInSet(NSCharacterSet.newlineCharacterSet())
+            if !record.hasPrefix("null") {
+                self.hadReservation = true
+                self.button?.image = NSImage(named: "Image-Reservation")
             }
             }, errorCallback: {})
     }
