@@ -1,0 +1,1 @@
+uploadToS3.py ~/Desktop/SharedCells-1.4.2.zip --secret $AWS_SECRET_ACCESS_KEY --key $AWS_ACCESS_KEY_ID --bucket onos --dest tools/

@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+import Foundation
 
 class SharedCellsViewController: NSViewController {
 
@@ -16,14 +17,14 @@ class SharedCellsViewController: NSViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        tableView.setDelegate(self)
-        tableView.setDataSource(self)
-        tableView.selectionHighlightStyle = .None
+        tableView.delegate = self
+        tableView.dataSource = self
+        tableView.selectionHighlightStyle = .none
     }
     
-    func updateCellData(newCellData: NSString) {
-        cellData = newCellData.componentsSeparatedByString("\n")
-        dispatch_async(dispatch_get_main_queue(), { () -> Void in
+    func updateCellData(_ newCellData: NSString) {
+        cellData = newCellData.components(separatedBy: "\n") as [NSString]
+        DispatchQueue.main.async(execute: { () -> Void in
             self.tableView.reloadData()
         })
     }
@@ -31,13 +32,13 @@ class SharedCellsViewController: NSViewController {
 }
 
 extension SharedCellsViewController : NSTableViewDataSource {
-    func numberOfRowsInTableView(tableView: NSTableView) -> Int {
+    func numberOfRows(in tableView: NSTableView) -> Int {
         return cellData != nil ? cellData!.count : 0
     }
 }
 
 extension SharedCellsViewController : NSTableViewDelegate {
-    func tableView(tableView: NSTableView, viewForTableColumn tableColumn: NSTableColumn?, row: Int) -> NSView? {
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         var cellIdentifier: String = ""
         var text: String = ""
  
@@ -45,7 +46,7 @@ extension SharedCellsViewController : NSTableViewDelegate {
             return nil
         }
         
-        let fields = item.componentsSeparatedByString(",")
+        let fields = item.components(separatedBy: ",")
         
         if tableColumn == tableView.tableColumns[0] {
             text = fields[0]
@@ -61,7 +62,7 @@ extension SharedCellsViewController : NSTableViewDelegate {
             cellIdentifier = "expirationID"
         }
         
-        if let cell = tableView.makeViewWithIdentifier(cellIdentifier, owner: nil) as? NSTableCellView {
+        if let cell = tableView.make(withIdentifier: cellIdentifier, owner: nil) as? NSTableCellView {
             cell.textField?.stringValue = text
             return cell
         }
