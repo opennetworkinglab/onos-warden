@@ -116,8 +116,9 @@ public class WardenServlet extends HttpServlet {
             String userName = req.getParameter("user");
             String sd = req.getParameter("duration");
             String spec = req.getParameter("spec");
+            String cellNameHint = req.getParameter("cellNameHint");
             int duration = isNullOrEmpty(sd) ? 0 : Integer.parseInt(sd);
-            String cellDefinition = warden.borrowCell(userName, sshKey, duration, spec);
+            String cellDefinition = warden.borrowCell(userName, sshKey, duration, spec, cellNameHint);
             out.println(cellDefinition);
         } catch (Exception e) {
             resp.setStatus(Response.SC_INTERNAL_SERVER_ERROR);

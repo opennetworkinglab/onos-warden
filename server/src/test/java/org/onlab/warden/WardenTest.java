@@ -73,14 +73,14 @@ public class WardenTest {
         assertEquals("incorrect number of cells", 6, warden.getCells().size());
         validateSizes(6, 0);
 
-        String cellDefinition = warden.borrowCell("dude", "the-key", 0, null);
+        String cellDefinition = warden.borrowCell("dude", "the-key", 0, null, null);
         assertTrue("incorrect definition", cellDefinition.contains("cell-def"));
         validateSizes(5, 1);
 
         Reservation dudeCell = warden.currentUserReservation("dude");
         validateCellState(dudeCell);
 
-        warden.borrowCell("dolt", "a-key", 0, "4+1");
+        warden.borrowCell("dolt", "a-key", 0, "4+1", null);
         Reservation doltCell = warden.currentUserReservation("dolt");
         validateCellState(doltCell);
         validateSizes(4, 2);
@@ -92,7 +92,7 @@ public class WardenTest {
         warden.returnCell("dude");
         validateSizes(5, 1);
 
-        warden.borrowCell("dolt", "a-key", 30, null);
+        warden.borrowCell("dolt", "a-key", 30, null, null);
         validateSizes(5, 1);
 
         warden.returnCell("dolt");

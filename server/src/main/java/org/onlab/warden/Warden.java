@@ -163,14 +163,15 @@ class Warden {
     /**
      * Reserves a cell for the specified user and their public access key.
      *
-     * @param userName user name
-     * @param sshKey   user ssh public key
-     * @param minutes  optional number of minutes for reservation
-     * @param cellSpec optional cell specification string
+     * @param userName     user name
+     * @param sshKey       user ssh public key
+     * @param minutes      optional number of minutes for reservation
+     * @param cellSpec     optional cell specification string
+     * @param cellNameHint optional cell name hint
      * @return reserved cell definition
      */
     synchronized String borrowCell(String userName, String sshKey, int minutes,
-                                   String cellSpec) {
+                                   String cellSpec, String cellNameHint) {
         checkNotNull(userName, USER_NOT_NULL);
         checkArgument(userName.matches("[\\w.-]+"), "Invalid user name %s", userName);
         checkNotNull(sshKey, KEY_NOT_NULL);
@@ -181,7 +182,7 @@ class Warden {
         Reservation reservation = currentUserReservation(userName);
         if (reservation == null) {
             // If there is no reservation for the user, create one
-            String cellName = findAvailableCell();
+            String cellName = findAvailableCell(cellNameHint);
             reservation = new Reservation(cellName, userName, System.currentTimeMillis(),
                                           minutes == 0 ? DEFAULT_MINUTES : minutes,
                                           cellSpec == null ? DEFAULT_SPEC : cellSpec);
@@ -207,9 +208,10 @@ class Warden {
      * of its hosting server; a random one will be chosen from the set of
      * cells hosted by the least loaded server.
      *
+     * @param cellNameHint optional hint for requesting a specific cell
      * @return name of an available cell
      */
-    private String findAvailableCell() {
+    private String findAvailableCell(String cellNameHint) {
         Set<String> cells = getAvailableCells();
         checkState(!cells.isEmpty(), "No cells are presently available");
         Map<String, ServerInfo> load = Maps.newHashMap();
@@ -217,6 +219,10 @@ class Warden {
         cells.stream().map(this::getCellInfo)
                 .forEach(info -> load.compute(info.hostName, (k, v) -> v == null ?
                         new ServerInfo(info.hostName, info) : v.bumpLoad(info)));
+
+        if (cellNameHint != null && !cellNameHint.isEmpty() && cells.contains(cellNameHint)) {
+            return cellNameHint;
+        }
 
         List<ServerInfo> servers = new ArrayList<>(load.values());
         servers.sort((a, b) -> b.load - a.load);
