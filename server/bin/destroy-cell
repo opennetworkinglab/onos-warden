@@ -10,11 +10,13 @@ mininet=${spec#*+}
 cd $(dirname $0)
 
 if [ $mininet -ge 1 ]; then
-    ./destroy-node $name-n
+    ./destroy-node $name-n &
 fi
 
 let n=1
 while [ $n -le $nodes ]; do
-    ./destroy-node $name-$n
+    ./destroy-node $name-$n &
     let n=n+1
 done
+
+wait
