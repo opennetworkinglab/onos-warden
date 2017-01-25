@@ -1,0 +1,12 @@
+
+How to Run
+
+1. Create ~/.aws/credentials  
+
+[default]
+aws_access_key_id = <key>
+aws_secret_access_key = <secret> 
+
+2. brew install node
+3. npm install
+4. node app.js
