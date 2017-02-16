@@ -6,8 +6,7 @@ var PROTO_PATH = __dirname + '/agent.proto';
 
 var grpc = require('grpc');
 var stub = grpc.load(PROTO_PATH).warden;
-var client = new stub.ClusterAgentService('localhost:50051',
-                                       grpc.credentials.createInsecure());
+var client = new stub.ClusterAgentService('localhost:50051', grpc.credentials.createInsecure());
 
 var call = client.cluster();
 call.on('end', function() {
@@ -17,7 +16,7 @@ call.on('end', function() {
 call.on('error', function(err) {
 	//TODO we want to re-establish connection on err
 	console.log('Error', err);
-})
+});
 call.on('status', function(status) {
 	console.log('status', status);
 });
@@ -30,10 +29,7 @@ var instanceParams = {
   LaunchSpecification: {
    ImageId: "ami-8d8c78c9", 
    InstanceType: "m3.medium", //m3.2xlarge
-   KeyName: "onos-test", 
-   // Placement: {
-   //  AvailabilityZone: "us-west-1"
-   // }, 
+   KeyName: "onos-test",
    SecurityGroupIds: [
       "all open"
    ],
@@ -54,7 +50,7 @@ var instanceParams = {
  };
 
 // Map of Spot Instance requests
-var instances = {}
+var instances = {};
 
 call.on('data', function(data) {
 	//FIXME this should do some reservations stuff

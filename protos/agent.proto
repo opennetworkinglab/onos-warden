@@ -47,5 +47,6 @@ message ClusterAdvertisement {
 }
 
 service ClusterAgentService {
-  rpc cluster (stream ClusterAdvertisement) returns (stream ClusterRequest) {}
+  rpc cluster (stream ClusterAdvertisement)
+  		returns (stream ClusterRequest) {}
 }
