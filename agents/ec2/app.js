@@ -2,7 +2,7 @@ var AWS = require('aws-sdk');
 AWS.config.update({region:'us-west-1'});
 var ec2 = new AWS.EC2();
 
-var PROTO_PATH = __dirname + '/agent.proto';
+var PROTO_PATH = __dirname + '/warden.proto';
 
 var grpc = require('grpc');
 var stub = grpc.load(PROTO_PATH).warden;

@@ -1,0 +1,91 @@
+//
+// Remote interface definitions for interactions between cell warden Agents, Server and Clients.
+// Note that the Client/Server and Agent/Server and symmetric to reflect the server's role as a
+// mere broker.
+//
+// backend agent to warden
+// - advertise cluster (ClusterAdvertisement)
+//    - update on new reservations
+// - withdraw cluster (ClusterAdvertisement)
+//
+// warden to backend agent
+// - request cluster (ClusterRequest)
+// - release cluster (ClusterRequest)
+//
+// front-end client to warden
+// - request cluster (ClusterRequest)
+// - release cluster (ClusterRequest)
+//
+// warden to front-end client
+// - advertise cluster (ClusterAdvertisement)
+//    - update on new reservations
+// - withdraw cluster (ClusterAdvertisement)
+
+syntax = "proto3";
+
+package warden;
+
+// Message for making requests to reserve or return a cluster resource
+message ClusterRequest {
+    string requestId = 1;
+    enum RequestType {
+        RESERVE = 0;
+        RETURN = 1;
+        EXTEND = 2;
+    }
+    RequestType type = 2;
+    int32 duration = 3; // minutes (-1 is indefinite, 0 is default duration)
+
+    message Spec {
+        uint32 controllerNodes = 1;
+        string userName = 2;
+        string userKey = 3;
+    }
+    Spec spec = 4;
+
+    string clusterId = 5; // request specific cluster if present
+    string clusterType = 6; // request specific cluster type if present, e.g. ec2, onlab
+}
+
+// Message advertising state of a cluster resource
+message ClusterAdvertisement {
+    string clusterId = 1;
+    string clusterType = 2; // e.g. ec2, onlab
+    enum State {
+        AVAILABLE = 0;
+        RESERVED = 1;
+        UNAVAILABLE = 2;
+    }
+    State state = 3;
+    string requestId = 4; // id of request that caused the most recent state change
+
+    string headNodeIP = 5;
+    message ClusterNode {
+        uint32 id = 1;
+        string ip = 2;
+    }
+    repeated ClusterNode nodes = 6;
+
+    message ReservationInfo {
+        string userName = 1;
+        int32 duration = 2; // minutes
+        uint32 reservationStartTime = 3; // seconds since epoch
+    }
+    ReservationInfo reservationInfo = 7; // current reservation info, if reserved
+}
+
+// Service for exchanging information between the server and the agent(s)
+service ClusterAgentService {
+    // Bi-directional stream where the agent sends cluster resource advertisements
+    // to server and the server makes requests of the agent
+    rpc cluster (stream ClusterAdvertisement) returns (stream ClusterRequest) {
+    }
+}
+
+// Service for exchanging information between the client(s) and the server
+service ClusterClientService {
+    // Bi-directional stream where the client makes cluster resource requests
+    // to the server and the server sends cluster resource advertisements to the client
+    rpc cluster (stream ClusterRequest) returns (stream ClusterAdvertisement) {
+    }
+}

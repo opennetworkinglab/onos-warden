@@ -1,4 +1,4 @@
-var PROTO_PATH = __dirname + '/agent.proto';
+var PROTO_PATH = __dirname + '/warden.proto';
 
 var grpc = require('grpc');
 var proto = grpc.load(PROTO_PATH).warden;
