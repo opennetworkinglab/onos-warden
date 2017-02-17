@@ -78,7 +78,7 @@ message ClusterAdvertisement {
 service ClusterAgentService {
     // Bi-directional stream where the agent sends cluster resource advertisements
     // to server and the server makes requests of the agent
-    rpc cluster (stream ClusterAdvertisement) returns (stream ClusterRequest) {
+    rpc agentClusters (stream ClusterAdvertisement) returns (stream ClusterRequest) {
     }
 }
 
@@ -86,6 +86,6 @@ service ClusterAgentService {
 service ClusterClientService {
     // Bi-directional stream where the client makes cluster resource requests
     // to the server and the server sends cluster resource advertisements to the client
-    rpc cluster (stream ClusterRequest) returns (stream ClusterAdvertisement) {
+    rpc serverClusters (stream ClusterRequest) returns (stream ClusterAdvertisement) {
     }
 }
