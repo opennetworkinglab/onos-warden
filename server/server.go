@@ -3,7 +3,7 @@ package main
 import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
-	pb "onosproject.org/warden/protos"
+	pb "proto"
 	"io"
 	"net"
 	"fmt"
@@ -22,6 +22,9 @@ type wardenServer struct {
 //      relays the requests to one of the selected agents
 
 func (s *wardenServer) sendExisting(stream pb.ClusterClientService_ServerClustersServer) {
+	stream.Send(&pb.ClusterAdvertisement{
+		ClusterId: "bar",
+	})
 	for _, cluster := range s.clusters {
 		stream.Send(&cluster)
 	}
@@ -46,7 +49,6 @@ func (s *wardenServer) ServerClusters(stream pb.ClusterClientService_ServerClust
 		if err != nil {
 			return err
 		}
-
 		s.requests <- in
 	}
 	return nil
@@ -85,5 +87,6 @@ func main() {
 	}
 	grpcServer := grpc.NewServer()
 	pb.RegisterClusterClientServiceServer(grpcServer, newServer())
+	fmt.Println("starting to serve...")
 	grpcServer.Serve(lis)
 }
