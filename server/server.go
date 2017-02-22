@@ -1,18 +1,19 @@
 package main
 
 import (
+	"fmt"
+	"github.com/opennetworkinglab/onos-warden/warden"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
-	pb "proto"
 	"io"
 	"net"
-	"fmt"
 )
 
 type wardenServer struct {
-	clusters map[string]pb.ClusterAdvertisement
-	clients  map[*pb.ClusterClientService_ServerClustersServer]bool
-	requests chan *pb.ClusterRequest
+	clusters map[string]warden.ClusterAdvertisement
+	clients  map[*warden.ClusterClientService_ServerClustersServer]bool
+	agents   map[*warden.ClusterAgentService_AgentClustersServer]bool
+	requests chan *warden.ClusterRequest
 }
 
 // setup an internal map of all available cluster resources (clusterId -> cluster)
@@ -21,8 +22,8 @@ type wardenServer struct {
 //    - queue will be served by a worker that applies some "policy" / business logic and
 //      relays the requests to one of the selected agents
 
-func (s *wardenServer) sendExisting(stream pb.ClusterClientService_ServerClustersServer) {
-	stream.Send(&pb.ClusterAdvertisement{
+func (s *wardenServer) sendExisting(stream warden.ClusterClientService_ServerClustersServer) {
+	stream.Send(&warden.ClusterAdvertisement{
 		ClusterId: "bar",
 	})
 	for _, cluster := range s.clusters {
@@ -30,7 +31,7 @@ func (s *wardenServer) sendExisting(stream pb.ClusterClientService_ServerCluster
 	}
 }
 
-func (s *wardenServer) ServerClusters(stream pb.ClusterClientService_ServerClustersServer) error {
+func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerClustersServer) error {
 	// register the stream so that we can send it new information to all active clients
 	s.clients[&stream] = true
 
@@ -54,7 +55,7 @@ func (s *wardenServer) ServerClusters(stream pb.ClusterClientService_ServerClust
 	return nil
 }
 
-func (s *wardenServer) AgentClusters(stream pb.ClusterAgentService_AgentClustersServer) error {
+func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClustersServer) error {
 	// register the stream into the inventory of active agents
 	// setup polling loop for receiving new cluster advertisements
 
@@ -62,14 +63,16 @@ func (s *wardenServer) AgentClusters(stream pb.ClusterAgentService_AgentClusters
 	// message about the updated resource
 
 	// defer mechanism to prune the inventory
+	fmt.Printf("%v\n", stream)
 	return nil
 }
 
 func newServer() *wardenServer {
 	s := new(wardenServer)
-	s.clusters = make(map[string]pb.ClusterAdvertisement)
-	s.clients = make(map[*pb.ClusterClientService_ServerClustersServer]bool)
-	s.requests = make(chan *pb.ClusterRequest)
+	s.clusters = make(map[string]warden.ClusterAdvertisement)
+	s.clients = make(map[*warden.ClusterClientService_ServerClustersServer]bool)
+	s.agents = make(map[*warden.ClusterAgentService_AgentClustersServer]bool)
+	s.requests = make(chan *warden.ClusterRequest)
 
 	go func() {
 		for {
@@ -86,7 +89,9 @@ func main() {
 		grpclog.Fatalf("failed to listen: %v", err)
 	}
 	grpcServer := grpc.NewServer()
-	pb.RegisterClusterClientServiceServer(grpcServer, newServer())
+	s := newServer()
+	warden.RegisterClusterClientServiceServer(grpcServer, s)
+	warden.RegisterClusterAgentServiceServer(grpcServer, s)
 	fmt.Println("starting to serve...")
 	grpcServer.Serve(lis)
 }

@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
+	"github.com/opennetworkinglab/onos-warden/warden"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"io"
-	"google.golang.org/grpc"
-	pb "proto"
-	"context"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 		grpclog.Fatalf("fail to dial: %v", err)
 	}
 	defer conn.Close()
-	client := pb.NewClusterClientServiceClient(conn)
+	client := warden.NewClusterClientServiceClient(conn)
 
 	stream, err := client.ServerClusters(context.Background())
 	if err != nil {
@@ -36,7 +36,7 @@ func main() {
 		}
 	}()
 
-	stream.Send(&pb.ClusterRequest{
+	stream.Send(&warden.ClusterRequest{
 		RequestId: "foo",
 	})
 
