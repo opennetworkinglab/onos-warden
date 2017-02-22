@@ -40,6 +40,6 @@ func main() {
 		RequestId: "foo",
 	})
 
-	stream.CloseSend()
+	//stream.CloseSend()
 	<-waitc
 }

@@ -7,6 +7,7 @@ import (
 )
 
 type Worker interface {
+	Bind(client WardenClient)
 	Handle(req *warden.ClusterRequest)
 	Teardown()
 }
@@ -33,6 +34,7 @@ func Run(worker Worker, err error) {
 	if err != nil {
 		panic(err)
 	} else {
+		worker.Bind(a.grpc)
 		fmt.Println("Started gRPC warden client")
 	}
 	defer a.grpc.Teardown()
