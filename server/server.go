@@ -7,28 +7,33 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"io"
 	"net"
+	"sync"
 )
 
+type cluster struct {
+	ad    *warden.ClusterAdvertisement
+	agent warden.ClusterAgentService_AgentClustersServer
+}
+
 type wardenServer struct {
-	clusters map[string]*warden.ClusterAdvertisement
-	clients  map[warden.ClusterClientService_ServerClustersServer]bool
-	agents   map[warden.ClusterAgentService_AgentClustersServer]bool
+	lock sync.Mutex
+
+	// setup an internal map of all available cluster resources (clusterId -> cluster)
+	clusters map[string]cluster
+
+	// registries of client and agent streams
+	clients map[warden.ClusterClientService_ServerClustersServer]bool
+	agents  map[warden.ClusterAgentService_AgentClustersServer]bool
+
+	// setup a queue for incoming requests from the client
+	//    - queue will be served by a worker that applies some "policy" / business logic and
+	//      relays the requests to one of the selected agent
 	requests chan *warden.ClusterRequest
 }
 
-// setup an internal map of all available cluster resources (clusterId -> cluster)
-
-// setup a queue for incoming requests from the client
-//    - queue will be served by a worker that applies some "policy" / business logic and
-//      relays the requests to one of the selected agent
-
-func (s *wardenServer) sendExisting(stream warden.ClusterClientService_ServerClustersServer) {
-	for _, cluster := range s.clusters {
-		stream.Send(cluster)
-	}
-}
-
 func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerClustersServer) error {
+	s.lock.Lock()
+
 	// register the stream so that we can send it new information to all active client
 	s.clients[stream] = true
 
@@ -36,7 +41,11 @@ func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerC
 	defer delete(s.clients, stream)
 
 	// send what we have, i.e. send them existing clusters
-	s.sendExisting(stream)
+	for _, cluster := range s.clusters {
+		stream.Send(cluster.ad)
+	}
+
+	s.lock.Unlock()
 
 	// setup a go routing that will poll for requests from the client
 	for {
@@ -47,22 +56,26 @@ func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerC
 		if err != nil {
 			return err
 		}
+
+		// enqueue the request
 		s.requests <- in
 	}
 	return nil
 }
 
 func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClustersServer) error {
+	s.lock.Lock()
+
 	// register the stream into the inventory of active agent
 	s.agents[stream] = true
-	fmt.Printf("%v\n", stream)
+
+	s.lock.Unlock()
 
 	// defer mechanism to prune the inventory
 	defer delete(s.agents, stream)
 
 	// setup polling loop for receiving new cluster advertisements
 	for {
-		// when new advertisement updates come in
 		in, err := stream.Recv()
 		if err == io.EOF {
 			return nil
@@ -72,30 +85,44 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 		}
 		fmt.Println(in)
 
-		// update the in-memory structures and
-		s.clusters[in.ClusterId] = in
+		s.lock.Lock()
+
+		// update the in-memory structures
+		s.clusters[in.ClusterId] = cluster{in, stream}
+
 		// relay the message about the updated resource
 		for c := range s.clients {
 			c.Send(in)
 		}
+
+		s.lock.Unlock()
 	}
 
 	return nil
 }
 
+func (s *wardenServer) processRequests() {
+	for {
+		request := <-s.requests
+		fmt.Println(request)
+
+		// find cluster
+		for _, c := range s.clusters {
+			// find the first one that is available
+			if c.ad.State == warden.ClusterAdvertisement_AVAILABLE {
+				// relay the request to the agent that advertised it
+				c.agent.Send(request)
+			}
+		}
+	}
+}
+
 func newServer() *wardenServer {
 	s := new(wardenServer)
-	s.clusters = make(map[string]*warden.ClusterAdvertisement)
+	s.clusters = make(map[string]cluster)
 	s.clients = make(map[warden.ClusterClientService_ServerClustersServer]bool)
 	s.agents = make(map[warden.ClusterAgentService_AgentClustersServer]bool)
 	s.requests = make(chan *warden.ClusterRequest)
-
-	go func() {
-		for {
-			request := <-s.requests
-			fmt.Println(request)
-		}
-	}()
 	return s
 }
 
@@ -106,6 +133,7 @@ func main() {
 	}
 	grpcServer := grpc.NewServer()
 	s := newServer()
+	go s.processRequests()
 	warden.RegisterClusterClientServiceServer(grpcServer, s)
 	warden.RegisterClusterAgentServiceServer(grpcServer, s)
 	fmt.Println("starting to serve...")
