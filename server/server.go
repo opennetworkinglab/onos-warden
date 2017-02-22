@@ -18,9 +18,9 @@ type wardenServer struct {
 
 // setup an internal map of all available cluster resources (clusterId -> cluster)
 
-// setup a queue for incoming requests from the clients
+// setup a queue for incoming requests from the client
 //    - queue will be served by a worker that applies some "policy" / business logic and
-//      relays the requests to one of the selected agents
+//      relays the requests to one of the selected agent
 
 func (s *wardenServer) sendExisting(stream warden.ClusterClientService_ServerClustersServer) {
 	stream.Send(&warden.ClusterAdvertisement{
@@ -32,7 +32,7 @@ func (s *wardenServer) sendExisting(stream warden.ClusterClientService_ServerClu
 }
 
 func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerClustersServer) error {
-	// register the stream so that we can send it new information to all active clients
+	// register the stream so that we can send it new information to all active client
 	s.clients[&stream] = true
 
 	// we can use the defer mechanism to prune the stream
@@ -56,7 +56,7 @@ func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerC
 }
 
 func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClustersServer) error {
-	// register the stream into the inventory of active agents
+	// register the stream into the inventory of active agent
 	// setup polling loop for receiving new cluster advertisements
 
 	// when new advertisement updates come in, update the in-memory structures and relay the

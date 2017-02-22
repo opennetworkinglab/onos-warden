@@ -5,22 +5,17 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
 )
 
 const DefaultAwsRegion string = "us-west-1"
 
-type EC2Client interface {
-	Reserve(req *warden.ClusterRequest)
-	Release(req *warden.ClusterRequest)
-	Teardown()
-}
-
 type ec2Client struct {
 	svc *ec2.EC2
 }
 
-func NewEC2Client(region string) (EC2Client, error) {
+func NewEC2Client(region string) (agent.Worker, error) {
 	var c ec2Client
 
 	sess, err := session.NewSession()
@@ -37,11 +32,7 @@ func (c *ec2Client) Teardown() {
 	//TODO
 }
 
-func (c *ec2Client) Reserve(req *warden.ClusterRequest) {
-	//TODO
-}
-
-func (c *ec2Client) Release(req *warden.ClusterRequest) {
+func (c *ec2Client) Handle(req *warden.ClusterRequest) {
 	//TODO
 }
 
@@ -60,4 +51,8 @@ func (c *ec2Client) updateInstances() {
 			fmt.Println("    - Instance ID: ", *inst.InstanceId)
 		}
 	}
+}
+
+func main() {
+	agent.Run(NewEC2Client(DefaultAwsRegion))
 }
