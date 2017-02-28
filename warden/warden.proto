@@ -74,22 +74,11 @@ message ClusterAdvertisement {
     ReservationInfo reservationInfo = 7; // current reservation info, if reserved
 }
 
-message AgentAdvertisement {
-    string agentId = 1;
-    string clusterType = 2;
-    int32 availableClusters = 3;
-}
-
-message Null {
-
-}
-
 // Service for exchanging information between the server and the agent(s)
 service ClusterAgentService {
     // Bi-directional stream where the agent sends cluster resource advertisements
     // to server and the server makes requests of the agent
     rpc agentClusters (stream ClusterAdvertisement) returns (stream ClusterRequest) {}
-    rpc register(AgentAdvertisement) returns (Null) {}
 }
 
 // Service for exchanging information between the client(s) and the server
