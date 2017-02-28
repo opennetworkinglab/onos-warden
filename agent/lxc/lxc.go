@@ -25,15 +25,17 @@ type lxcClient struct {
 func NewAgentWorker() (agent.Worker, error) {
 	var c lxcClient
 
+	return &c, nil
+}
+
+func (c *lxcClient) Start() {
 	go func() {
 		for {
-			time.Sleep(5 * time.Second)
 			ad := cannedCells[rand.Intn(len(cannedCells))]
 			c.client.PublishUpdate(&ad)
+			time.Sleep(5 * time.Second)
 		}
 	}()
-
-	return &c, nil
 }
 
 func (c *lxcClient) Bind(client agent.WardenClient) {

@@ -7,12 +7,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
+	"time"
 )
 
 const DefaultAwsRegion string = "us-west-1"
 
 type ec2Client struct {
 	svc *ec2.EC2
+	client agent.WardenClient
 }
 
 func NewEC2Client(region string) (agent.Worker, error) {
@@ -25,7 +27,23 @@ func NewEC2Client(region string) (agent.Worker, error) {
 
 	c.svc = ec2.New(sess, aws.NewConfig().WithRegion(region))
 
+
 	return &c, err
+}
+
+func (c *ec2Client) Bind(client agent.WardenClient) {
+	c.client = client
+}
+
+
+func (c *ec2Client) Start() {
+	go func() {
+		for {
+			c.updateInstances()
+			c.client.PublishUpdate(&warden.ClusterAdvertisement{})
+			time.Sleep(5 * time.Second)
+		}
+	}()
 }
 
 func (c *ec2Client) Teardown() {

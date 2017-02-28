@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"golang.org/x/net/context"
 )
 
 type cluster struct {
@@ -29,6 +30,12 @@ type wardenServer struct {
 	//    - queue will be served by a worker that applies some "policy" / business logic and
 	//      relays the requests to one of the selected agent
 	requests chan *warden.ClusterRequest
+}
+
+var emptyReply = warden.Null{}
+func (s *wardenServer) Register(c context.Context, ad *warden.AgentAdvertisement) (*warden.Null, error) {
+	fmt.Println(ad)
+	return &emptyReply, nil
 }
 
 func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerClustersServer) error {
