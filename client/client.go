@@ -10,65 +10,59 @@ import (
 	"os"
 	"os/user"
 	"flag"
-	"math/rand"
-	"time"
-	"github.com/opennetworkinglab/onos-warden/util"
+	"os/signal"
 )
 
-
-func init() {
-	rand.Seed(time.Now().Unix())
+type client struct {
+	stream warden.ClusterClientService_ServerClustersClient
+	ads chan *warden.ClusterAdvertisement
 }
 
-func sendRequest(stream warden.ClusterClientService_ServerClustersClient, request warden.ClusterRequest, cId, cType string) {
-	request.ClusterId = cId
-	request.ClusterType = cType
-	stream.Send(&request)
-}
-
-func reserveCluster(stream warden.ClusterClientService_ServerClustersClient, baseRequest warden.ClusterRequest) *warden.ClusterAdvertisement {
-	var cluster *warden.ClusterAdvertisement
-	availableClusters := make([]*warden.ClusterAdvertisement, 0)
-	for {
-		ad, err := stream.Recv()
-		if err == io.EOF {
-			// stream closed
-			grpclog.Fatalln("Stream closed unexpectedly")
-			os.Exit(1)
-		}
-		if err != nil {
-			grpclog.Fatalf("Failed to receive: %v", err)
-		}
-		grpclog.Println("Got message:", ad)
-		switch ad.State {
-		case warden.ClusterAdvertisement_AVAILABLE:
-			if cluster == nil {
-				// pick the first available cluster
-				cluster = ad
-				sendRequest(stream, baseRequest, ad.ClusterId, ad.ClusterType)
-			} else {
-				// store the cluster away for later, just in case the current one doesn't work out
-				availableClusters = append(availableClusters, ad)
-			}
-		case warden.ClusterAdvertisement_RESERVED:
-			if cluster != nil {
-				if ad.RequestId != baseRequest.RequestId {
-					// cluster was assigned to someone else; try again...
-					avail := availableClusters[0]
-					availableClusters = availableClusters[1:]
-					cluster = avail
-					sendRequest(stream, baseRequest, avail.ClusterId, avail.ClusterType)
-				} else if ad.State == warden.ClusterAdvertisement_RESERVED {
-					// cluster is ready!
-					fmt.Println("Got cluster:", ad);
-					return cluster
-				}
-			}
-		}
+func New(addr string) *client {
+	c := client {
+		ads: make(chan *warden.ClusterAdvertisement),
 	}
+
+	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	if err != nil {
+		grpclog.Fatalf("fail to dial: %v", err)
+	}
+	client := warden.NewClusterClientServiceClient(conn)
+
+	c.stream, err = client.ServerClusters(context.Background())
+	if err != nil {
+		grpclog.Fatalf("%v.ServerClusters(_) = _, %v", client, err)
+	}
+
+	go func() {
+		for {
+			ad, err := c.stream.Recv()
+			if err == io.EOF {
+				// stream closed
+				grpclog.Fatalln("Stream closed unexpectedly")
+			}
+			if err != nil {
+				grpclog.Fatalf("Failed to receive: %v", err)
+			}
+			//TODO remove this:
+			grpclog.Println("Got message:", ad)
+			c.ads <- ad
+		}
+	}()
+	return &c
 }
 
-// Request the first available cell, return when cell reservation is completed
+func (c *client) sendRequest(baseRequest warden.ClusterRequest, t warden.ClusterRequest_RequestType) {
+	baseRequest.Type = t
+	c.stream.Send(&baseRequest)
+}
+
+func (c *client) returnClusterAndExit(req warden.ClusterRequest, code int) {
+	c.sendRequest(req, warden.ClusterRequest_RESERVE)
+	os.Exit(code)
+}
+
+// Request the first available cell, return when cell reservation is completed or cell becomes unavailable
 func main() {
 	currUser, err := user.Current()
 	if err != nil {
@@ -78,10 +72,12 @@ func main() {
 	key := flag.String("key", "", "public key for SSH")
 	duration := flag.Int64("duration", -1, "duration of reservation in minutes; -1 is unlimited")
 	nodes := flag.Uint64("nodes", 3, "number of nodes in cell; defaults to 3")
+	addr := flag.String("addr", "127.0.0.1:1234", "address of warden")
 
+	//Note: Request ids must be unique
+	// ClusterId and ClusterType are optional and we won't be filling those in
 	reqId := *username //TODO just using the username for now
-	request := warden.ClusterRequest{
-		Type:        warden.ClusterRequest_RESERVE,
+	baseRequest := warden.ClusterRequest{
 		Duration:    int32(*duration),
 		RequestId:   reqId,
 		Spec: &warden.ClusterRequest_Spec{
@@ -90,23 +86,34 @@ func main() {
 			UserKey:         *key,
 		},
 	}
+	c := New(*addr)
+	c.sendRequest(baseRequest, warden.ClusterRequest_RESERVE)
 
-	//TODO change this to a flag
-	conn, err := grpc.Dial("127.0.0.1:1234", grpc.WithInsecure())
-	if err != nil {
-		grpclog.Fatalf("fail to dial: %v", err)
+	intrChan := make(chan os.Signal)
+	signal.Notify(intrChan, os.Interrupt, os.Kill)
+	var cluster *warden.ClusterAdvertisement
+	for {
+		select {
+		case <-intrChan:
+			c.returnClusterAndExit(baseRequest,0)
+		case ad := <-c.ads:
+			switch ad.State {
+			case warden.ClusterAdvertisement_RESERVED:
+				if baseRequest.RequestId == ad.RequestId {
+					// cluster is ready!
+					fmt.Println("Got cluster:", ad);
+					cluster = ad
+				}
+			case warden.ClusterAdvertisement_UNAVAILABLE:
+				if cluster.State == warden.ClusterAdvertisement_RESERVED &&
+					cluster.ClusterId == ad.ClusterId &&
+					cluster.ClusterType == ad.ClusterType &&
+					cluster.RequestId == ad.RequestId {
+					// our cluster is no longer available
+					fmt.Println("Returning cluster, then exit error")
+					c.returnClusterAndExit(baseRequest, 1)
+				}
+			}
+		}
 	}
-	defer conn.Close()
-	client := warden.NewClusterClientServiceClient(conn)
-
-	stream, err := client.ServerClusters(context.Background())
-	if err != nil {
-		grpclog.Fatalf("%v.ServerClusters(_) = _, %v", client, err)
-	}
-	defer stream.CloseSend()
-
-	cluster := reserveCluster(stream, request)
-	util.WaitForInterrupt()
-	request.Type = warden.ClusterRequest_RETURN
-	sendRequest(stream, request, cluster.ClusterId, cluster.ClusterType)
 }
