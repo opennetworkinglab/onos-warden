@@ -44,15 +44,14 @@ func (c *client) Bind(client agent.WardenClient) {
 }
 
 func (c *client) Teardown() {
-	//TODO grpc connection is dead at this point
-	//c.mux.Lock()
-	//defer c.mux.Unlock()
-	//
-	//// Don't worry about the map, we are going away
-	//for _, ad := range c.cells {
-	//	ad.State = warden.ClusterAdvertisement_UNAVAILABLE
-	//	c.grpc.PublishUpdate(&ad)
-	//}
+	c.mux.Lock()
+	defer c.mux.Unlock()
+
+	// Don't worry about the map, we are going away
+	for _, ad := range c.cells {
+		ad.State = warden.ClusterAdvertisement_UNAVAILABLE
+		c.grpc.PublishUpdate(&ad)
+	}
 }
 
 func (c *client) Handle(req *warden.ClusterRequest) {

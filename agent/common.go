@@ -29,7 +29,6 @@ func Run(worker Worker, err error) {
 	} else {
 		fmt.Println("Started agent worker")
 	}
-	defer a.worker.Teardown()
 
 	a.grpc, err = NewWardenClient(address, a.worker, nil)
 	if err != nil {
@@ -38,11 +37,13 @@ func Run(worker Worker, err error) {
 		worker.Bind(a.grpc)
 		fmt.Println("Started gRPC warden client")
 	}
-	defer a.grpc.Teardown()
 
 	worker.Start()
 
 	util.WaitForInterrupt()
+
+	a.worker.Teardown()
+	a.grpc.Teardown()
 
 	fmt.Println("Exiting...")
 	//TODO consider withdrawing all clusters before teardown?
