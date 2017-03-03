@@ -20,6 +20,8 @@ const (
 	DefaultAwsRegion string = "us-west-1"
 	ClusterType = "ec2"
 	InstanceName = "warden-cell"
+	updatePollingInterval = 10 * time.Second //1 * time.Minute
+	startupPollingInterval = 2 * time.Second
 )
 var IpBase = binary.BigEndian.Uint32(net.ParseIP("10.0.0.0")[12:16])
 
@@ -59,13 +61,13 @@ func (c *ec2Client) Start() {
 
 	// Add placeholder clusters as needed, up to the limit
 	for i := len(c.clusters); i < c.limit; i++ {
-		c.addOrUpdate(getPlaceholderCluster(i))
+		c.addOrUpdate([]cluster{getPlaceholderCluster(i)}, false)
 	}
 
 	// Start goroutine to periodically update clusters
 	go func() {
 		for {
-			time.Sleep(5 * time.Second)
+			time.Sleep(updatePollingInterval)
 			c.updateInstances()
 		}
 	}()
@@ -89,6 +91,11 @@ func (c *ec2Client) Handle(req *warden.ClusterRequest) {
 		//TODO
 	case warden.ClusterRequest_RETURN:
 		//TODO
+		err := c.returnCluster(req)
+		if err != nil {
+			fmt.Println("Unable process return", req, err)
+			return
+		}
 	default:
 		fmt.Println("Unsupported request: %+v\n", req)
 	}
@@ -129,12 +136,16 @@ func getCluster(inst *ec2.Instance) (c cluster, err error) {
 		c.InstanceStarted = false
 	}
 	for _, t := range inst.Tags {
-		switch k, v := *t.Key, *t.Value; k {
+		k, v := *t.Key, *t.Value
+		if v == "" {
+			continue
+		}
+		switch k {
 		case "Cell-Id":
 			c.ClusterId = v
 		case "Cell-Request-Id":
 			c.RequestId = v
-			if c.State == warden.ClusterAdvertisement_AVAILABLE {
+			if v != "" && c.State == warden.ClusterAdvertisement_AVAILABLE {
 				c.State = warden.ClusterAdvertisement_RESERVED
 			}
 		case "Cell-Size":
@@ -206,18 +217,20 @@ func tag(k, v string) *ec2.Tag {
 
 func (c *ec2Client) tagInstance(inst string, cl *cluster) error {
 	id, reqId := cl.ClusterId, cl.RequestId
-	user := cl.ReservationInfo.UserName
-	size, start := cl.Size, cl.ReservationInfo.ReservationStartTime
-	duration := cl.ReservationInfo.Duration
-
+	size := cl.Size
 	tags := make([]*ec2.Tag, 0)
-	tags = append(tags, tag("Cell-Id", id), tag("Name", InstanceName))
+	tags = append(tags,
+		tag("Cell-Id", id),
+		tag("Name", InstanceName),
+		tag("Cell-Size", strconv.FormatUint(uint64(size), 10)))
 
 	fmt.Printf("%+v\n", *cl)
-	if reqId != "" {
+	if reqId != "" && cl.ReservationInfo != nil {
+		user := cl.ReservationInfo.UserName
+		start := cl.ReservationInfo.ReservationStartTime
+		duration := cl.ReservationInfo.Duration
 		tags = append(tags,
 			tag("Cell-Request-Id", reqId),
-			tag("Cell-Size", strconv.FormatUint(uint64(size), 10)),
 			tag("Cell-Start", strconv.FormatUint(uint64(start), 10)),
 			tag("Cell-Duration", strconv.FormatInt(int64(duration), 10)),
 			tag("Cell-User", user),
@@ -225,7 +238,6 @@ func (c *ec2Client) tagInstance(inst string, cl *cluster) error {
 	} else {
 		tags = append(tags,
 				tag("Cell-Request-Id", ""),
-				tag("Cell-Size", ""),
 				tag("Cell-Start", ""),
 				tag("Cell-Duration", ""),
 				tag("Cell-User", ""),
@@ -240,76 +252,44 @@ func (c *ec2Client) tagInstance(inst string, cl *cluster) error {
 	return err
 }
 
-func equal(a, b *warden.ClusterAdvertisement) bool {
-	if a == b {
-		return true
-	}
-	if a.ClusterId != b.ClusterId {
-		return false
-	}
-	if a.ClusterType != b.ClusterType {
-		return false
-	}
-	if a.State != b.State {
-		return false
-	}
-	if a.RequestId != b.RequestId {
-		return false
-	}
-	if a.HeadNodeIP != b.HeadNodeIP {
-		return false
-	}
-	if len(a.Nodes) != len(b.Nodes) {
-		return false
-	}
-	for i := range a.Nodes {
-		nA, nB := a.Nodes[i], b.Nodes[i]
-		if nA == nB {
-			continue
-		}
-		if nA == nil {
-			return false
-		}
-		if nA.Id != nB.Id  {
-			return false
-		}
-		if nA.Ip != nB.Ip {
-			return false
-		}
-	}
-
-	if a.ReservationInfo != b.ReservationInfo {
-		if a.ReservationInfo == nil {
-			return false
-		}
-		if a.ReservationInfo.UserName != b.ReservationInfo.UserName {
-			return false
-		}
-		if a.ReservationInfo.Duration != b.ReservationInfo.Duration {
-			return false
-		}
-		if a.ReservationInfo.ReservationStartTime != b.ReservationInfo.ReservationStartTime {
-			return false
-		}
-	}
-
-	return true
-}
-
-func (c *ec2Client) addOrUpdate(cl cluster) {
+func (c *ec2Client) addOrUpdate(cls []cluster, removeMissing bool) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
-	id := cl.ClusterId
-	old, ok := c.clusters[id]
-	c.clusters[id] = cl
-	//TODO consider !reflect.DeepEqual() vs equal()
-//	if !ok || !equal(&cl.ClusterAdvertisement, &old.ClusterAdvertisement) {
-	if !ok || !reflect.DeepEqual(cl.ClusterAdvertisement, old.ClusterAdvertisement) {
-		fmt.Printf("Updating: %+v\n", cl)
-		c.client.PublishUpdate(&cl.ClusterAdvertisement)
-	} else {
-		fmt.Println("new or equal", id)
+	update := make(map[string]bool)
+	for k := range c.clusters {
+		update[k] = false
+	}
+
+	for _, cl := range cls {
+		id := cl.ClusterId
+		old, ok := c.clusters[id]
+		c.clusters[id] = cl
+		update[id] = true
+		//TODO consider custom equal() instead of reflect
+		if !ok || !reflect.DeepEqual(cl.ClusterAdvertisement, old.ClusterAdvertisement) {
+			fmt.Printf("Updating: %+v\n", cl)
+			c.client.PublishUpdate(&cl.ClusterAdvertisement)
+		} else {
+			fmt.Println("new or equal", id)
+		}
+	}
+
+	if removeMissing {
+		for k, updated := range update {
+			if !updated {
+				oldCl, ok := c.clusters[k]
+				if !ok {
+					continue
+				}
+				newCl := emptyCluster(k)
+				if !reflect.DeepEqual(oldCl, newCl) {
+					fmt.Printf("Removing: %+v\n", oldCl)
+					c.clusters[k] = newCl
+					c.client.PublishUpdate(&newCl.ClusterAdvertisement)
+				}
+			}
+		}
 	}
 }
 
@@ -332,6 +312,7 @@ func (c *ec2Client) reserveCluster(req *warden.ClusterRequest) (*cluster, error)
 	id := req.ClusterId
 	var cl cluster
 	if id == "" {
+		//FIXME prefer reuse over placeholder clusters
 		for _, v := range c.clusters {
 			if v.State == warden.ClusterAdvertisement_AVAILABLE {
 				cl = v
@@ -367,7 +348,30 @@ func (c *ec2Client) reserveCluster(req *warden.ClusterRequest) (*cluster, error)
 	return &cl, nil
 }
 
-func (c *ec2Client) requestInstance (cl *cluster, wait chan string) {
+func (c *ec2Client) returnCluster(req *warden.ClusterRequest) error {
+	if req.ClusterType != ClusterType {
+		return fmt.Errorf("Cluster type %s is not %s", req.ClusterType, ClusterType)
+	}
+	id := req.ClusterId
+	cl, ok := c.get(id)
+	if !ok {
+		return fmt.Errorf("Cluster %s does not exists", id)
+	}
+	if req.RequestId != cl.RequestId {
+		return fmt.Errorf("Wrong requestId for cluster %s", id)
+	}
+
+	cl.RequestId = ""
+	cl.Provisioned = false
+	cl.State = warden.ClusterAdvertisement_AVAILABLE
+	cl.ReservationInfo = nil
+	c.tagInstance(cl.InstanceId, &cl)
+	c.addOrUpdate([]cluster{cl}, false)
+	return nil
+}
+
+
+func (c *ec2Client) requestInstance (cl *cluster, wait chan struct{}) {
 	dm := ec2.BlockDeviceMapping{
 		DeviceName: aws.String("/dev/sda1"),
 		Ebs: &ec2.EbsBlockDevice{
@@ -402,7 +406,7 @@ func (c *ec2Client) requestInstance (cl *cluster, wait chan string) {
 		var id string
 		for { // Wait for reservation to be fulfilled
 			fmt.Println("Wait for reservation...")
-			time.Sleep(2 * time.Second)
+			time.Sleep(startupPollingInterval)
 			out, err := c.svc.DescribeSpotInstanceRequests(&ec2.DescribeSpotInstanceRequestsInput{
 				SpotInstanceRequestIds: ids,
 			})
@@ -427,37 +431,56 @@ func (c *ec2Client) requestInstance (cl *cluster, wait chan string) {
 			}
 		}
 		for { // Wait for instance to start
-			//TODO Busy waiting for now, but should be updated to listen to map events
-			cl, ok := c.get(cl.ClusterId)
-			fmt.Println("Wait for start...", cl, ok)
-			if ok && cl.InstanceStarted {
+			out, err := c.svc.DescribeInstances(&ec2.DescribeInstancesInput{
+				InstanceIds: aws.StringSlice([]string{id}),
+			})
+			if err != nil {
+				fmt.Println(err)
+				continue
+			}
+			fmt.Println(out)
+
+			// Collect the cluster updates
+			var targetCl *cluster
+			for _, res := range out.Reservations {
+				for _, inst := range res.Instances {
+					cl, err := getCluster(inst)
+					if err == nil {
+						targetCl = &cl
+					}
+				}
+			}
+
+			if targetCl != nil && targetCl.InstanceStarted {
+				//c.addOrUpdate([]cluster{*targetCl}, false)
 				break
 			}
-			time.Sleep(1 * time.Second)
+			fmt.Println("Wait for start...", targetCl)
+			time.Sleep(startupPollingInterval)
 		}
 		fmt.Println("started")
-		wait <- id
 		close(wait)
 	}()
 }
 
 func (c *ec2Client) provisionCluster(cl *cluster, userKey string) {
-	wait := make(chan string)
+	wait := make(chan struct{})
 	if cl.InstanceId == "" {
 		c.requestInstance(cl, wait)
 	} else {
-		//c.tagInstance()
-		wait <- cl.InstanceId
+		//FIXME c.tagInstance()
+		c.tagInstance(cl.InstanceId, cl)
 		close(wait)
 	}
 	go func() {
 		instanceId := <- wait
 		fmt.Println("instance ready!!!", instanceId)
 
-		cluster, ok := c.get(cl.ClusterId)
+		updatedCl, ok := c.get(cl.ClusterId)
 		if ok {
-			cluster.Provisioned = true
-			c.tagInstance(cluster.InstanceId, &cluster)
+			updatedCl.Provisioned = true
+			c.tagInstance(updatedCl.InstanceId, &updatedCl)
+			c.addOrUpdate([]cluster{updatedCl}, false)
 		} else {
 			fmt.Println("failed to get", cl.ClusterId)
 		}
@@ -465,6 +488,29 @@ func (c *ec2Client) provisionCluster(cl *cluster, userKey string) {
 		// TODO set start time (== launch time?)
 		// set by ec2: headNodeIp, Nodes, LaunchTime, InstanceId, InstanceType
 	}()
+}
+
+func (c *ec2Client) testAndShutdown(cl cluster) {
+	if !cl.InstanceStarted || cl.State != warden.ClusterAdvertisement_AVAILABLE {
+		return
+	}
+	delta := time.Since(cl.LaunchTime)
+	delta = delta - time.Duration(delta.Hours()) // remove the hours
+	fmt.Println(time.Hour - delta)
+	if time.Hour - delta <= updatePollingInterval {
+		c.terminateInstance(cl)
+	}
+	//FIXME also test end of reservation
+}
+
+func (c *ec2Client) terminateInstance(cl cluster) {
+	_, err := c.svc.TerminateInstances(&ec2.TerminateInstancesInput{
+		InstanceIds: aws.StringSlice([]string{cl.InstanceId}),
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+	c.addOrUpdate([]cluster{emptyCluster(cl.ClusterId)}, false)
 }
 
 func (c *ec2Client) updateInstances() error {
@@ -480,18 +526,18 @@ func (c *ec2Client) updateInstances() error {
 		return err
 	}
 
-	// Update each cluster
+	// Collect the cluster updates
+	clusters := make([]cluster, 0)
 	for _, res := range resp.Reservations {
 		for _, inst := range res.Instances {
 			cl, err := getCluster(inst)
 			if err == nil {
-				c.addOrUpdate(cl)
+				clusters = append(clusters, cl)
+				c.testAndShutdown(cl)
 			}
-			//TODO shutdown if AVAILABLE and nearing end of hour
 		}
 	}
-
-	//TODO detect existing clusters that are missing in this update
+	c.addOrUpdate(clusters, true)
 	return nil
 }
 
