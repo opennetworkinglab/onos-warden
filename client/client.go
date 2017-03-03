@@ -14,9 +14,22 @@ import (
 	"time"
 )
 
+
+func init() {
+	rand.Seed(time.Now().Unix())
+}
+
+func sendRequest(stream warden.ClusterClientService_ServerClustersClient, request warden.ClusterRequest, cId, cType string) (reqId string) {
+	reqId = fmt.Sprintf("res-%4x", uint16(rand.Int()))
+	request.ClusterId = cId
+	request.ClusterType = cType
+	request.RequestId = reqId
+	stream.Send(&request)
+	return
+}
+
 // Request the first available cell, return when cell reservation is completed
 func main() {
-	rand.Seed(time.Now().Unix())
 	currUser, err := user.Current()
 	if err != nil {
 		panic(err)
@@ -26,6 +39,17 @@ func main() {
 	duration := flag.Int64("duration", -1, "duration of reservation in minutes; -1 is unlimited")
 	nodes := flag.Uint64("nodes", 3, "number of nodes in cell; defaults to 3")
 
+	request := warden.ClusterRequest{
+		Type:        warden.ClusterRequest_RESERVE,
+		Duration:    int32(*duration),
+		Spec: &warden.ClusterRequest_Spec{
+			ControllerNodes: uint32(*nodes),
+			UserName:        *username,
+			UserKey:         *key,
+		},
+	}
+
+	//TODO change this to a flag
 	conn, err := grpc.Dial("127.0.0.1:1234", grpc.WithInsecure())
 	if err != nil {
 		grpclog.Fatalf("fail to dial: %v", err)
@@ -41,6 +65,7 @@ func main() {
 
 	var cluster *warden.ClusterAdvertisement
 	var reqId string
+	availableClusters := make([]*warden.ClusterAdvertisement, 0)
 	for {
 		ad, err := stream.Recv()
 		if err == io.EOF {
@@ -52,33 +77,29 @@ func main() {
 			grpclog.Fatalf("Failed to receive: %v", err)
 		}
 		grpclog.Println("Got message:", ad)
-		if cluster == nil {
-			// pick the first available cluster
-			if ad.State == warden.ClusterAdvertisement_AVAILABLE {
+		switch ad.State {
+		case warden.ClusterAdvertisement_AVAILABLE:
+			if cluster == nil {
+				// pick the first available cluster
 				cluster = ad
-				reqId = fmt.Sprintf("res-%x", rand.Int())
-				stream.Send(&warden.ClusterRequest{
-					RequestId:   reqId,
-					Type:        warden.ClusterRequest_RESERVE,
-					ClusterId:   ad.ClusterId,
-					ClusterType: ad.ClusterType,
-					Duration:    int32(*duration),
-					Spec: &warden.ClusterRequest_Spec{
-						ControllerNodes: uint32(*nodes),
-						UserName: *username,
-						UserKey: *key,
-					},
-				})
+				reqId = sendRequest(stream, request, ad.ClusterId, ad.ClusterType)
+			} else {
+				// store the cluster away for later, just in case the current one doesn't work out
+				availableClusters = append(availableClusters, ad)
 			}
-
-		} else if cluster.ClusterId == ad.ClusterId && cluster.ClusterType == cluster.ClusterType {
-			if ad.RequestId != reqId {
-				// cluster was assigned to someone else; try again...
-				cluster = nil
-				reqId = ""
-			} else if ad.State == warden.ClusterAdvertisement_RESERVED {
-				fmt.Println("Got cluster:", ad);
-				break
+		case warden.ClusterAdvertisement_RESERVED:
+			if cluster != nil {
+				if ad.RequestId != reqId {
+					// cluster was assigned to someone else; try again...
+					avail := availableClusters[0]
+					availableClusters = availableClusters[1:]
+					cluster = avail
+					reqId = sendRequest(stream, request, avail.ClusterId, avail.ClusterType)
+				} else if ad.State == warden.ClusterAdvertisement_RESERVED {
+					// cluster is ready!
+					fmt.Println("Got cluster:", ad);
+					return
+				}
 			}
 		}
 	}
