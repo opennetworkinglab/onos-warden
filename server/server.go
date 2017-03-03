@@ -42,6 +42,7 @@ func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerC
 
 	// send what we have, i.e. send them existing clusters
 	for _, cluster := range s.clusters {
+		fmt.Println("Sending update", stream, cluster.ad)
 		stream.Send(cluster.ad)
 	}
 
@@ -51,9 +52,11 @@ func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerC
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
+			fmt.Println("client stream closed", stream)
 			return nil
 		}
 		if err != nil {
+			fmt.Println("client stream error", stream)
 			return err
 		}
 
@@ -72,15 +75,30 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 	s.lock.Unlock()
 
 	// defer mechanism to prune the inventory
-	defer delete(s.agents, stream)
+	defer func() {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+
+		// remove cells from the wardne map when agent disappears
+		for id, cl := range s.clusters {
+			//TODO maybe we should time these out instead?
+			if cl.agent == stream {
+				delete(s.clusters, id)
+			}
+		}
+		delete(s.agents, stream)
+		fmt.Println(s.clusters, s.agents)
+	}()
 
 	// setup polling loop for receiving new cluster advertisements
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
+			fmt.Println("agent stream closed", stream)
 			return nil
 		}
 		if err != nil {
+			fmt.Println("agent stream error", stream)
 			return err
 		}
 		fmt.Println(in)
@@ -89,9 +107,11 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 
 		// update the in-memory structures
 		s.clusters[in.ClusterId] = cluster{in, stream}
+		fmt.Println(s.clusters)
 
 		// relay the message about the updated resource
 		for c := range s.clients {
+			fmt.Println("Sending update", c, in)
 			c.Send(in)
 		}
 
@@ -112,6 +132,8 @@ func (s *wardenServer) processRequests() {
 			if c.ad.State == warden.ClusterAdvertisement_AVAILABLE {
 				// relay the request to the agent that advertised it
 				c.agent.Send(request)
+				fmt.Println("sending request to cluster", c, request)
+				break
 			}
 		}
 	}
