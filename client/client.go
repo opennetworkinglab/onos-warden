@@ -58,7 +58,8 @@ func (c *client) sendRequest(baseRequest warden.ClusterRequest, t warden.Cluster
 }
 
 func (c *client) returnClusterAndExit(req warden.ClusterRequest, code int) {
-	c.sendRequest(req, warden.ClusterRequest_RESERVE)
+	c.sendRequest(req, warden.ClusterRequest_RETURN)
+	c.stream.CloseSend()
 	os.Exit(code)
 }
 
@@ -92,23 +93,37 @@ func main() {
 	intrChan := make(chan os.Signal)
 	signal.Notify(intrChan, os.Interrupt, os.Kill)
 	var cluster *warden.ClusterAdvertisement
+	blockUntilInterrupt := true //TODO make this settable by flag
+
 	for {
 		select {
 		case <-intrChan:
 			c.returnClusterAndExit(baseRequest,0)
 		case ad := <-c.ads:
 			switch ad.State {
+			case warden.ClusterAdvertisement_READY:
+				//TODO ready logic
+				fmt.Println("Ready cluster:", ad);
+				if !blockUntilInterrupt {
+					return
+				}
+				fallthrough
 			case warden.ClusterAdvertisement_RESERVED:
 				if baseRequest.RequestId == ad.RequestId {
 					// cluster is ready!
-					fmt.Println("Got cluster:", ad);
-					cluster = ad
+					if cluster == nil ||
+						cluster.ClusterId != ad.ClusterId ||
+						cluster.ClusterType != ad.ClusterType ||
+						cluster.RequestId != ad.RequestId {
+						fmt.Println("Got cluster:", ad);
+						cluster = ad
+
+					}
 				}
-			case warden.ClusterAdvertisement_UNAVAILABLE:
-				if cluster.State == warden.ClusterAdvertisement_RESERVED &&
+			default: // warden.ClusterAdvertisement_{UNAVAILABLE, AVAILABLE}
+				if cluster != nil &&
 					cluster.ClusterId == ad.ClusterId &&
-					cluster.ClusterType == ad.ClusterType &&
-					cluster.RequestId == ad.RequestId {
+					cluster.ClusterType == ad.ClusterType {
 					// our cluster is no longer available
 					fmt.Println("Returning cluster, then exit error")
 					c.returnClusterAndExit(baseRequest, 1)

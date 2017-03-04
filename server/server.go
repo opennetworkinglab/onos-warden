@@ -15,11 +15,24 @@ type cluster struct {
 	agent warden.ClusterAgentService_AgentClustersServer
 }
 
+type request struct {
+	req *warden.ClusterRequest
+	client warden.ClusterClientService_ServerClustersServer
+}
+
+type key struct {
+	cId string
+	cType string
+}
+
 type wardenServer struct {
 	lock sync.Mutex
 
-	// setup an internal map of all available cluster resources (clusterId -> cluster)
-	clusters map[string]cluster
+	// mapping from key(ClusterId, ClusterType) to cluster resources
+	clusters map[key]cluster
+
+	// mapping from RequestId to key(ClusterId, ClusterType)
+	requests map[string]key
 
 	// registries of client and agent streams
 	clients map[warden.ClusterClientService_ServerClustersServer]bool
@@ -28,7 +41,7 @@ type wardenServer struct {
 	// setup a queue for incoming requests from the client
 	//    - queue will be served by a worker that applies some "policy" / business logic and
 	//      relays the requests to one of the selected agent
-	requests chan *warden.ClusterRequest
+	incomingReq chan request
 }
 
 func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerClustersServer) error {
@@ -61,7 +74,7 @@ func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerC
 		}
 
 		// enqueue the request
-		s.requests <- in
+		s.incomingReq <- request{in, stream}
 	}
 	return nil
 }
@@ -79,12 +92,13 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 		s.lock.Lock()
 		defer s.lock.Unlock()
 
-		// remove cells from the wardne map when agent disappears
+		// remove cells from the warden map when agent disappears
 		for id, cl := range s.clusters {
 			//TODO maybe we should time these out instead?
 			if cl.agent == stream {
 				delete(s.clusters, id)
 			}
+			//TODO need to delete requests as well and send UNAVAILABLE
 		}
 		delete(s.agents, stream)
 		fmt.Println(s.clusters, s.agents)
@@ -106,8 +120,15 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 		s.lock.Lock()
 
 		// update the in-memory structures
-		s.clusters[in.ClusterId] = cluster{in, stream}
+		k := key{in.ClusterId, in.ClusterType}
+		s.clusters[k] = cluster{in, stream}
+		if in.RequestId != "" {
+			s.requests[in.RequestId] = k
+		}
+		// FIXME clean up requests  on release
+
 		fmt.Println(s.clusters)
+		fmt.Println(s.requests)
 
 		// relay the message about the updated resource
 		for c := range s.clients {
@@ -123,28 +144,63 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 
 func (s *wardenServer) processRequests() {
 	for {
-		request := <-s.requests
-		fmt.Println(request)
+		request := <-s.incomingReq
+		fmt.Println()
+		req := request.req
+		client := request.client
 
-		// find cluster
-		for _, c := range s.clusters {
-			// find the first one that is available
-			if c.ad.State == warden.ClusterAdvertisement_AVAILABLE {
-				// relay the request to the agent that advertised it
-				c.agent.Send(request)
-				fmt.Println("sending request to cluster", c, request)
-				break
+		// TODO
+		// 1. check to see if we have already satisfied the request
+		// 2. find an appropriate cluster for the request
+
+		func() {
+			s.lock.Lock()
+			defer s.lock.Unlock()
+
+			rId := req.RequestId
+			k, ok := s.requests[rId]
+			if ok {
+				ad, ok := s.clusters[k]
+				if ok {
+					// unicast the cluster to client
+					fmt.Println("send ad to client", ad)
+					client.Send(ad.ad)
+					ad.agent.Send(req)
+					return
+				} else {
+					delete(s.requests, rId)
+				}
 			}
-		}
+
+			// find cluster
+			for _, c := range s.clusters {
+				if req.ClusterType != "" && req.ClusterType != c.ad.ClusterType {
+					continue
+				}
+				if req.ClusterId != "" && req.ClusterId != c.ad.ClusterId {
+					continue
+				}
+				// find the first one that is available
+				if c.ad.State == warden.ClusterAdvertisement_AVAILABLE {
+					// relay the request to the agent that advertised it
+					fmt.Println("sending request to cluster", c, req)
+					c.agent.Send(req)
+					s.requests[rId] = key{c.ad.ClusterId, c.ad.ClusterType}
+					return
+				}
+			}
+		}()
+
 	}
 }
 
 func newServer() *wardenServer {
 	s := new(wardenServer)
-	s.clusters = make(map[string]cluster)
+	s.clusters = make(map[key]cluster)
+	s.requests = make(map[string]key)
 	s.clients = make(map[warden.ClusterClientService_ServerClustersServer]bool)
 	s.agents = make(map[warden.ClusterAgentService_AgentClustersServer]bool)
-	s.requests = make(chan *warden.ClusterRequest)
+	s.incomingReq = make(chan request)
 	return s
 }
 

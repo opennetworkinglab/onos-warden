@@ -19,12 +19,14 @@ const (
 type client struct {
 	grpc  agent.WardenClient
 	cells map[string]warden.ClusterAdvertisement
+	requests map[string]string
 	mux sync.Mutex
 }
 
 func NewAgentWorker() (agent.Worker, error) {
 	var c client
 	c.cells = make(map[string]warden.ClusterAdvertisement)
+	c.requests = make(map[string]string)
 	return &c, nil
 }
 
@@ -55,11 +57,11 @@ func (c *client) Teardown() {
 }
 
 func (c *client) Handle(req *warden.ClusterRequest) {
-	if req.ClusterType != clusterType {
+	if req.ClusterType != "" && req.ClusterType != clusterType {
 		fmt.Println("Cannot handle cluster type", req.ClusterType)
 		return
 	}
-	ad, ok := c.getRequest(req.ClusterId)
+	ad, ok := c.getRequest(req.ClusterId, req.RequestId)
 	if !ok {
 		fmt.Println("Cannot find cluster id", req.ClusterId)
 		return
@@ -108,15 +110,46 @@ func (c *client) Handle(req *warden.ClusterRequest) {
 		ad.Nodes = nil
 		ad.ReservationInfo = nil
 	}
+	fmt.Println("Updating", ad)
 	c.updateRequest(&ad)
 }
 
-func (c *client) getRequest(cId string) (warden.ClusterAdvertisement, bool) {
+func (c *client) getRequest(cId, rId string) (w warden.ClusterAdvertisement, retOk bool) {
+	retOk = false
+
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
-	ad, ok := c.cells[cId]
-	return ad, ok
+	if rId != "" {
+		v, ok := c.requests[rId]
+		if ok {
+			if cId != "" && cId != v {
+				// request is present; cId does not match request's cluster id
+				return
+			} else {
+				// uses the request's existing cluster id
+				cId = v
+			}
+		}
+	}
+
+	if cId != "" {
+		ad, ok := c.cells[cId]
+		if ok {
+			return ad, true
+		}
+	} else {
+		// reserve an available cluster
+		for _, v := range c.cells {
+			if v.RequestId != "" && rId != v.RequestId {
+				continue
+			}
+			if v.State == warden.ClusterAdvertisement_AVAILABLE {
+				return v, true
+			}
+		}
+	}
+	return
 }
 
 func (c *client) updateRequest(ad *warden.ClusterAdvertisement) {
@@ -128,6 +161,13 @@ func (c *client) updateRequest(ad *warden.ClusterAdvertisement) {
 	if !ok || !reflect.DeepEqual(existing, ad) {
 		c.cells[id] = *ad
 		c.grpc.PublishUpdate(ad)
+	}
+	if ad.RequestId != "" {
+		// request id was added
+		c.requests[ad.RequestId] = id
+	} else if existing.RequestId != "" {
+		// request id was dropped
+		delete(c.requests, ad.RequestId)
 	}
 }
 

@@ -55,6 +55,7 @@ message ClusterAdvertisement {
         UNAVAILABLE = 0;
         AVAILABLE = 1;
         RESERVED = 2;
+        READY = 3;
     }
     State state = 3;
     string requestId = 4; // id of request that caused the most recent state change
