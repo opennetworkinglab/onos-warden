@@ -73,6 +73,10 @@ func (c *client) Handle(req *warden.ClusterRequest) {
 
 	switch req.Type {
 	case warden.ClusterRequest_RESERVE:
+		if ad.ReservationInfo != nil {
+			fmt.Println("Could not reserve cell", ad, req)
+			return
+		}
 		ad.State = warden.ClusterAdvertisement_RESERVED
 		ad.RequestId = req.RequestId
 		if req.Spec == nil {
@@ -94,6 +98,12 @@ func (c *client) Handle(req *warden.ClusterRequest) {
 				Ip: ip.String(),
 			}
 		}
+		go func(a warden.ClusterAdvertisement) {
+			// update a copy after 5 seconds to simulate provisioning
+			time.Sleep(10*time.Second)
+			a.State = warden.ClusterAdvertisement_READY
+			c.updateRequest(&a)
+		}(ad)
 	case warden.ClusterRequest_EXTEND:
 		if ad.ReservationInfo == nil {
 			fmt.Println("Could not extend reservation; reservation info missing", req)

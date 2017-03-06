@@ -61,6 +61,8 @@ func (s *wardenServer) ServerClusters(stream warden.ClusterClientService_ServerC
 
 	s.lock.Unlock()
 
+	//FIXME revoke all duration == -1 requests if client disconnects
+
 	// setup a go routing that will poll for requests from the client
 	for {
 		in, err := stream.Recv()
@@ -94,11 +96,14 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 
 		// remove cells from the warden map when agent disappears
 		for id, cl := range s.clusters {
-			//TODO maybe we should time these out instead?
+			//TODO maybe we should time these out instead? in case, the agent is coming right back
 			if cl.agent == stream {
 				delete(s.clusters, id)
 			}
-			//TODO need to delete requests as well and send UNAVAILABLE
+			if rId := cl.ad.RequestId; rId != "" {
+				delete(s.requests, rId)
+				//TODO need to send UNAVAILABLE
+			}
 		}
 		delete(s.agents, stream)
 		fmt.Println(s.clusters, s.agents)
@@ -121,11 +126,15 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 
 		// update the in-memory structures
 		k := key{in.ClusterId, in.ClusterType}
+		existing, ok := s.clusters[k]
+		if ok && in.RequestId != existing.ad.RequestId{
+			// reservation is no longer assocated with the old request
+			delete(s.requests, existing.ad.RequestId)
+		}
 		s.clusters[k] = cluster{in, stream}
 		if in.RequestId != "" {
 			s.requests[in.RequestId] = k
 		}
-		// FIXME clean up requests  on release
 
 		fmt.Println(s.clusters)
 		fmt.Println(s.requests)
@@ -149,14 +158,11 @@ func (s *wardenServer) processRequests() {
 		req := request.req
 		client := request.client
 
-		// TODO
-		// 1. check to see if we have already satisfied the request
-		// 2. find an appropriate cluster for the request
-
 		func() {
 			s.lock.Lock()
 			defer s.lock.Unlock()
 
+			// Check to see if we have already satisfied the request
 			rId := req.RequestId
 			k, ok := s.requests[rId]
 			if ok {
@@ -168,11 +174,12 @@ func (s *wardenServer) processRequests() {
 					ad.agent.Send(req)
 					return
 				} else {
+					// this shouldn't happen, but we'll do some cleanup if it does
 					delete(s.requests, rId)
 				}
 			}
 
-			// find cluster
+			// If not, find an appropriate cluster for the request
 			for _, c := range s.clusters {
 				if req.ClusterType != "" && req.ClusterType != c.ad.ClusterType {
 					continue

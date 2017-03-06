@@ -93,7 +93,7 @@ func main() {
 	intrChan := make(chan os.Signal)
 	signal.Notify(intrChan, os.Interrupt, os.Kill)
 	var cluster *warden.ClusterAdvertisement
-	blockUntilInterrupt := true //TODO make this settable by flag
+	blockUntilInterrupt := true //TODO make this settable by flag; if false, require duration > 0
 
 	for {
 		select {
@@ -105,6 +105,7 @@ func main() {
 				//TODO ready logic
 				fmt.Println("Ready cluster:", ad);
 				if !blockUntilInterrupt {
+					c.stream.CloseSend()
 					return
 				}
 				fallthrough
