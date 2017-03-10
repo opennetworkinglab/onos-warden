@@ -58,8 +58,10 @@ func (c *client) sendRequest(baseRequest warden.ClusterRequest, t warden.Cluster
 }
 
 func (c *client) returnClusterAndExit(req warden.ClusterRequest, code int) {
+	fmt.Println("returning...")
 	c.sendRequest(req, warden.ClusterRequest_RETURN)
 	c.stream.CloseSend()
+	fmt.Println("return sent")
 	os.Exit(code)
 }
 
