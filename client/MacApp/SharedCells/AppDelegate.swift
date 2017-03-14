@@ -116,7 +116,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     func borrow11Cell() { borrowCell("1%2B1") }
     func borrow31Cell() { borrowCell("3%2B1") }
     func borrow51Cell() { borrowCell("5%2B1") }
-    func borrow71Cell() { borrowCell("6%2B1") }
+    func borrow71Cell() { borrowCell("7%2B1") }
     func borrow10Cell() { borrowCell("1%2B0") }
     func borrow30Cell() { borrowCell("3%2B0") }
     func borrow50Cell() { borrowCell("5%2B0") }
