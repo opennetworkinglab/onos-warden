@@ -7,7 +7,7 @@ import (
 	"bytes"
 )
 
-//http://blog.ralch.com/tutorial/golang-ssh-connection/
+// Returns an ssh.ClientConfig given a username and key filepath
 func GetConfig(user, keyFile string) (*ssh.ClientConfig, error) {
 	b, err := ioutil.ReadFile(keyFile)
 	if err != nil {
@@ -25,6 +25,8 @@ func GetConfig(user, keyFile string) (*ssh.ClientConfig, error) {
 	}, nil
 }
 
+// Runs the given command on the ssh.Client and provides stdin to the processes on the remote
+// Returns stdout and stderr; err is != nil if exit status is != 0
 func RunCmd(c *ssh.Client, cmd, stdin string) (stdout, stderr string, err error) {
 	session, err := c.NewSession()
 	if err != nil {
