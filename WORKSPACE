@@ -31,5 +31,5 @@ new_go_repository(
 new_go_repository(
     name = "org_golang_x_crypto",
     importpath = "golang.org/x/crypto",
-    tag = "728b753d0135da6801d45a38e6f43ff55779c5c2",
+    tag = "92783773f0d5c65e68a806909423bea53c78df01",
 )

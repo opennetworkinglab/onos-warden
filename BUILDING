@@ -1,0 +1,3 @@
+Building the dummy agent:
+bazel build --strategy=GoAsmCompile=standalone  //agent/dummy:dummy
+
