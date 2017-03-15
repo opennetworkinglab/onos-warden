@@ -1,16 +1,16 @@
 package main
 
 import (
+	"bufio"
+	"crypto/md5"
+	"encoding/hex"
+	"fmt"
 	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
-	"time"
 	"os"
-	"bufio"
-	"fmt"
-	"strings"
-	"crypto/md5"
 	"strconv"
-	"encoding/hex"
+	"strings"
+	"time"
 )
 
 const configurationFile = "/Users/tom/cells.cfg"
@@ -76,7 +76,7 @@ func (c *lxcClient) readConfiguration() {
 }
 
 // Reads the current cell configuration from the environment.
-func (c *lxcClient) cellConfig(cfg string) (lxcCell) {
+func (c *lxcClient) cellConfig(cfg string) lxcCell {
 	var cell lxcCell
 	hash := md5.Sum([]byte(cfg))
 	md5 := hex.EncodeToString(hash[:])
@@ -100,10 +100,9 @@ func (c *lxcClient) cellConfig(cfg string) (lxcCell) {
 	return cell
 }
 
-
 // Reads the current reservation data from the current file; returns nil if there
 // is no reservation.
-func (c *lxcClient) readReservation(cell string) (*warden.ClusterAdvertisement_ReservationInfo) {
+func (c *lxcClient) readReservation(cell string) *warden.ClusterAdvertisement_ReservationInfo {
 	f, err := os.Open("/Users/tom/" + cell + ".rez")
 	if err != nil {
 		return nil
@@ -116,7 +115,7 @@ func (c *lxcClient) readReservation(cell string) (*warden.ClusterAdvertisement_R
 	scanner.Scan()
 	fields := strings.Split(scanner.Text(), ",")
 
-	startTime, err := strconv.ParseUint(strings.Trim(fields[1], " "), 10,32)
+	startTime, err := strconv.ParseUint(strings.Trim(fields[1], " "), 10, 32)
 	if err != nil {
 		panic("Invalid time:" + fields[1])
 	}
@@ -127,9 +126,9 @@ func (c *lxcClient) readReservation(cell string) (*warden.ClusterAdvertisement_R
 	}
 
 	return &warden.ClusterAdvertisement_ReservationInfo{
-		UserName: fields[0],
+		UserName:             fields[0],
 		ReservationStartTime: uint32(startTime),
-		Duration: int32(duration),
+		Duration:             int32(duration),
 	}
 }
 

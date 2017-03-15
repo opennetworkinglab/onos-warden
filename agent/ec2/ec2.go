@@ -1,46 +1,45 @@
 package main
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
-	"time"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"sync"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/aws"
-	"encoding/binary"
-	"net"
-	"reflect"
-	"errors"
-	"strconv"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
+	"net"
+	"reflect"
+	"strconv"
+	"sync"
+	"time"
 )
 
-type cluster struct{
+type cluster struct {
 	warden.ClusterAdvertisement
-	Size uint32
-	InstanceId string
-	InstanceType string
+	Size            uint32
+	InstanceId      string
+	InstanceType    string
 	InstanceStarted bool
-	LaunchTime time.Time
+	LaunchTime      time.Time
 }
 
 const (
-	DefaultAwsRegion string = "us-west-1"
-	ClusterType = "ec2"
-	InstanceName = "warden-cell"
-	InstanceImageId = "ami-a17128c1"
-	InstanceType = "m3.medium"
-	KeyName = "onos-warden"
-	MaxPrice = "1" // $1/hr, TODO make this dynamic
-	updatePollingInterval = 2 * time.Minute
-	startupPollingInterval = 2 * time.Second
+	DefaultAwsRegion       string = "us-west-1"
+	ClusterType                   = "ec2"
+	InstanceName                  = "warden-cell"
+	InstanceImageId               = "ami-a17128c1"
+	InstanceType                  = "m3.medium"
+	KeyName                       = "onos-warden"
+	MaxPrice                      = "1" // $1/hr, TODO make this dynamic
+	updatePollingInterval         = 2 * time.Minute
+	startupPollingInterval        = 2 * time.Second
 )
 
 var IpBase = binary.BigEndian.Uint32(net.ParseIP("10.0.1.100")[12:16])
-
 
 type ec2Client struct {
 	svc      *ec2.EC2
@@ -205,8 +204,8 @@ func (c *ec2Client) reserveCluster(req *warden.ClusterRequest) (*cluster, error)
 	cl.Size = req.Spec.ControllerNodes
 	cl.RequestId = req.RequestId
 	cl.ReservationInfo = &warden.ClusterAdvertisement_ReservationInfo{
-		UserName: req.Spec.UserName,
-		Duration: req.Duration,
+		UserName:             req.Spec.UserName,
+		Duration:             req.Duration,
 		ReservationStartTime: uint32(time.Now().Unix()),
 	}
 
@@ -305,7 +304,7 @@ func createContainer(c *ssh.Client, name, ip, baseImage string) {
 	var err error
 	agent.RunCmd(c, fmt.Sprintf("sudo lxc-stop -n %s", name), "")
 	agent.RunCmd(c, fmt.Sprintf("sudo lxc-destroy -n %s", name), "")
-	_,_,err = agent.RunCmd(c, fmt.Sprintf("sudo lxc-copy -n %s -N %s", baseImage, name), "")
+	_, _, err = agent.RunCmd(c, fmt.Sprintf("sudo lxc-copy -n %s -N %s", baseImage, name), "")
 	fmt.Printf("out: %s, err: %s, err: %v\n", stdout, stderr, err)
 	if err != nil {
 		//FIXME error handling
@@ -427,7 +426,7 @@ func (c *ec2Client) tagInstance(inst string, cl *cluster) error {
 	fmt.Println(tags)
 	_, err := c.svc.CreateTags(&ec2.CreateTagsInput{
 		Resources: aws.StringSlice([]string{inst}),
-		Tags: tags,
+		Tags:      tags,
 	})
 	return err
 }
@@ -441,18 +440,18 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 		DeviceName: aws.String("/dev/sda1"),
 		Ebs: &ec2.EbsBlockDevice{
 			DeleteOnTermination: aws.Bool(true),
-			Encrypted: aws.Bool(false),
-			VolumeSize: aws.Int64(16),
-			VolumeType: aws.String("gp2"),
+			Encrypted:           aws.Bool(false),
+			VolumeSize:          aws.Int64(16),
+			VolumeType:          aws.String("gp2"),
 		},
 	}
 
 	r := ec2.RequestSpotInstancesInput{
 		LaunchSpecification: &ec2.RequestSpotLaunchSpecification{
-			ImageId: aws.String(InstanceImageId),
-			InstanceType: aws.String(InstanceType),
-			KeyName: aws.String(KeyName),
-			SecurityGroupIds: aws.StringSlice([]string{"all open"}),
+			ImageId:             aws.String(InstanceImageId),
+			InstanceType:        aws.String(InstanceType),
+			KeyName:             aws.String(KeyName),
+			SecurityGroupIds:    aws.StringSlice([]string{"all open"}),
 			BlockDeviceMappings: []*ec2.BlockDeviceMapping{&dm},
 		},
 		SpotPrice: aws.String(MaxPrice),
@@ -533,7 +532,7 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 func (c *ec2Client) updateInstances() error {
 	// Request instances from EC2 that are tagged with "Cell-Id"
 	filter := ec2.Filter{
-		Name: aws.String("tag-key"),
+		Name:   aws.String("tag-key"),
 		Values: aws.StringSlice([]string{"Cell-Id"}),
 	}
 	in := ec2.DescribeInstancesInput{Filters: []*ec2.Filter{&filter}}
@@ -577,14 +576,14 @@ func (c *ec2Client) updateInstances() error {
 }
 
 func clusterFromInstance(inst *ec2.Instance) (c cluster, err error) {
-	c = cluster {
+	c = cluster{
 		ClusterAdvertisement: warden.ClusterAdvertisement{
-			ClusterType: ClusterType,
+			ClusterType:     ClusterType,
 			ReservationInfo: &warden.ClusterAdvertisement_ReservationInfo{},
 		},
-		InstanceId: *inst.InstanceId,
+		InstanceId:   *inst.InstanceId,
 		InstanceType: *inst.InstanceType,
-		LaunchTime: *inst.LaunchTime,
+		LaunchTime:   *inst.LaunchTime,
 	}
 	if inst.PublicIpAddress != nil {
 		c.HeadNodeIP = *inst.PublicIpAddress
@@ -662,11 +661,11 @@ func clusterFromInstance(inst *ec2.Instance) (c cluster, err error) {
 }
 
 func emptyCluster(id string) cluster {
-	return cluster {
+	return cluster{
 		ClusterAdvertisement: warden.ClusterAdvertisement{
 			ClusterType: ClusterType,
-			State: warden.ClusterAdvertisement_AVAILABLE,
-			ClusterId: id,
+			State:       warden.ClusterAdvertisement_AVAILABLE,
+			ClusterId:   id,
 		},
 	}
 }
@@ -678,7 +677,7 @@ func shouldShutdown(cl *cluster) bool {
 	delta := time.Since(cl.LaunchTime)
 	delta = delta - time.Duration(delta.Hours()) // remove the hours
 	fmt.Println(time.Hour - delta)
-	if time.Hour - delta <= updatePollingInterval {
+	if time.Hour-delta <= updatePollingInterval {
 		return true
 	}
 	return false

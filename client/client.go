@@ -2,24 +2,24 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"github.com/opennetworkinglab/onos-warden/warden"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"io"
-	"fmt"
 	"os"
-	"os/user"
-	"flag"
 	"os/signal"
+	"os/user"
 )
 
 type client struct {
 	stream warden.ClusterClientService_ServerClustersClient
-	ads chan *warden.ClusterAdvertisement
+	ads    chan *warden.ClusterAdvertisement
 }
 
 func New(addr string) *client {
-	c := client {
+	c := client{
 		ads: make(chan *warden.ClusterAdvertisement),
 	}
 
@@ -81,8 +81,8 @@ func main() {
 	// ClusterId and ClusterType are optional and we won't be filling those in
 	reqId := *username //TODO just using the username for now
 	baseRequest := warden.ClusterRequest{
-		Duration:    int32(*duration),
-		RequestId:   reqId,
+		Duration:  int32(*duration),
+		RequestId: reqId,
 		Spec: &warden.ClusterRequest_Spec{
 			ControllerNodes: uint32(*nodes),
 			UserName:        *username,
@@ -100,12 +100,12 @@ func main() {
 	for {
 		select {
 		case <-intrChan:
-			c.returnClusterAndExit(baseRequest,0)
+			c.returnClusterAndExit(baseRequest, 0)
 		case ad := <-c.ads:
 			switch ad.State {
 			case warden.ClusterAdvertisement_READY:
 				//TODO ready logic
-				fmt.Println("Ready cluster:", ad);
+				fmt.Println("Ready cluster:", ad)
 				if !blockUntilInterrupt {
 					c.stream.CloseSend()
 					return
@@ -118,7 +118,7 @@ func main() {
 						cluster.ClusterId != ad.ClusterId ||
 						cluster.ClusterType != ad.ClusterType ||
 						cluster.RequestId != ad.RequestId {
-						fmt.Println("Got cluster:", ad);
+						fmt.Println("Got cluster:", ad)
 						cluster = ad
 
 					}

@@ -1,10 +1,10 @@
 package agent
 
 import (
+	"bytes"
+	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
-	"fmt"
-	"bytes"
 )
 
 // Returns an ssh.ClientConfig given a username and key filepath
@@ -80,7 +80,6 @@ func RunCmd(c *ssh.Client, cmd, stdin string) (stdout, stderr string, err error)
 	return outbuf.String(), errbuf.String(), cmdErr
 
 }
-
 
 func example() {
 	addr := "54.153.91.176:22"

@@ -14,3 +14,4 @@ dependency-reduced-pom.xml
 .buckd
 buck-out
 node_modules
+/bazel-*

@@ -16,12 +16,12 @@ type cluster struct {
 }
 
 type request struct {
-	req *warden.ClusterRequest
+	req    *warden.ClusterRequest
 	client warden.ClusterClientService_ServerClustersServer
 }
 
 type key struct {
-	cId string
+	cId   string
 	cType string
 }
 
@@ -127,7 +127,7 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 		// update the in-memory structures
 		k := key{in.ClusterId, in.ClusterType}
 		existing, ok := s.clusters[k]
-		if ok && in.RequestId != existing.ad.RequestId{
+		if ok && in.RequestId != existing.ad.RequestId {
 			// reservation is no longer assocated with the old request
 			delete(s.requests, existing.ad.RequestId)
 		}
