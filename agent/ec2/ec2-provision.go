@@ -6,25 +6,22 @@ import (
 	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
 	"golang.org/x/crypto/ssh"
-	"io/ioutil"
 	"net"
 	"sync"
 	"time"
 )
 
-func (c *ec2Client) provisionCluster(cl *cluster, userKey string) {
-	//FIXME do actual provisioning
-	time.Sleep(5 * time.Second)
-	fmt.Println("instance ready!!!", cl.InstanceId, cl.HeadNodeIP)
+func (c *ec2Client) provisionCluster(cl *cluster, userKey string) error {
+	fmt.Printf("Provisioning cluster %s (%s) at %s\n", cl.ClusterId, cl.InstanceId, cl.HeadNodeIP)
+	var err error
 
-	// FIXME cl.IP is nil if cluster was just started
 	addr := fmt.Sprintf("%s:%d", cl.HeadNodeIP, 22)
 	user, key := "ubuntu", "/Users/bocon/.ssh/onos-warden.pem"
 
-	fmt.Println("Dialing...")
+	fmt.Print("Dialing...")
 	config, err := agent.GetConfig(user, key)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	var connection *ssh.Client
 	for i := 0; i < 60; i++ {
@@ -32,13 +29,15 @@ func (c *ec2Client) provisionCluster(cl *cluster, userKey string) {
 		if err == nil {
 			break
 		} else {
-			fmt.Printf("Failed to dial: %s\n", err)
+			fmt.Print(".")
 			time.Sleep(startupPollingInterval)
 		}
 	}
 	if connection == nil {
-		fmt.Println("Can't provision!!!!")
-		return
+		fmt.Println("Failed to dial: %s\n", err)
+		return err
+	} else {
+		fmt.Println()
 	}
 
 	var wg sync.WaitGroup
@@ -68,19 +67,7 @@ func (c *ec2Client) provisionCluster(cl *cluster, userKey string) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	c.addOrUpdate(*cl)
-}
-
-func PublicKeyFile(file string) ssh.AuthMethod {
-	buffer, err := ioutil.ReadFile(file)
-	if err != nil {
-		return nil
-	}
-
-	key, err := ssh.ParsePrivateKey(buffer)
-	if err != nil {
-		return nil
-	}
-	return ssh.PublicKeys(key)
+	return nil
 }
 
 func createContainer(c *ssh.Client, name, ip, baseImage string) {

@@ -47,8 +47,8 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 	for _, r := range out.SpotInstanceRequests {
 		ids = append(ids, r.SpotInstanceRequestId)
 	}
+	fmt.Print("Wait for reservation...")
 	for { // Wait for reservation to be fulfilled
-		fmt.Println("Wait for reservation...")
 		time.Sleep(startupPollingInterval)
 		out, err := c.svc.DescribeSpotInstanceRequests(&ec2.DescribeSpotInstanceRequestsInput{
 			SpotInstanceRequestIds: ids,
@@ -57,7 +57,6 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 			fmt.Println(err)
 			continue
 		}
-		fmt.Println(out)
 		for _, r := range out.SpotInstanceRequests {
 			if r.InstanceId != nil && *r.InstanceId != "" {
 				fmt.Println(*r.InstanceId)
@@ -68,12 +67,14 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 		if cl.InstanceId != "" {
 			break
 		}
+		fmt.Print(".")
 	}
-	// OR consider...
+	//TODO: OR consider...
 	//c.svc.WaitUntilSpotInstanceRequestFulfilled(&ec2.DescribeSpotInstanceRequestsInput{
 	//	SpotInstanceRequestIds: ids,
 	//})
 
+	fmt.Print("Wait for start...")
 	for { // Wait for instance to start
 		out, err := c.svc.DescribeInstances(&ec2.DescribeInstancesInput{
 			InstanceIds: aws.StringSlice([]string{cl.InstanceId}),
@@ -82,7 +83,6 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 			fmt.Println(err)
 			continue
 		}
-		fmt.Println(out)
 
 		// Collect the cluster updates
 		var targetCl *cluster
@@ -96,17 +96,18 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 		}
 
 		if targetCl != nil && targetCl.InstanceStarted {
-			//c.addOrUpdate([]cluster{*targetCl}, false)
+			// Copy the node IP over from the newly created instance
+			cl.HeadNodeIP = targetCl.HeadNodeIP
+			fmt.Println(cl)
 			break
 		}
-		fmt.Println("Wait for start...", targetCl)
 		time.Sleep(startupPollingInterval)
+		fmt.Print(".")
 	}
-	// OR consider...
+	//TODO: OR consider...
 	//c.svc.WaitUntilInstanceRunning(&ec2.DescribeInstancesInput{
 	//	InstanceIds: aws.StringSlice([]string{id}),
 	//})
-	fmt.Println("started", cl.InstanceId)
 	return nil
 }
 
@@ -123,7 +124,6 @@ func (c *ec2Client) tagInstance(inst string, cl *cluster) error {
 		tag("Name", InstanceName),
 		tag("Cell-Size", strconv.FormatUint(uint64(size), 10)))
 
-	fmt.Printf("%+v\n", *cl)
 	if reqId != "" && cl.ReservationInfo != nil {
 		user := cl.ReservationInfo.UserName
 		start := cl.ReservationInfo.ReservationStartTime
@@ -143,7 +143,6 @@ func (c *ec2Client) tagInstance(inst string, cl *cluster) error {
 			tag("Cell-Provisioned", ""))
 	}
 
-	fmt.Println(tags)
 	_, err := c.svc.CreateTags(&ec2.CreateTagsInput{
 		Resources: aws.StringSlice([]string{inst}),
 		Tags:      tags,
@@ -194,7 +193,6 @@ func (c *ec2Client) updateInstances() error {
 				if shouldShutdown(&cl) {
 					go c.terminateInstance(cl)
 				} else {
-					fmt.Println("polling", cl)
 					c.addOrUpdate(cl)
 				}
 			}

@@ -103,10 +103,15 @@ func (c *ec2Client) Handle(req *warden.ClusterRequest) {
 	case warden.ClusterRequest_RESERVE:
 		cl, err := c.reserveCluster(req)
 		if err != nil {
-			fmt.Println("Unable process reservation", req, err)
+			fmt.Println("Unable reserve cluster for request", req, err)
 			return
 		}
-		c.provisionCluster(cl, req.Spec.UserKey)
+		err = c.provisionCluster(cl, req.Spec.UserKey)
+		if err != nil {
+			fmt.Println("Unable to provision cluster for request", req, err)
+			return
+		}
+
 	case warden.ClusterRequest_EXTEND:
 		_, err := c.extendCluster(req)
 		if err != nil {
@@ -134,8 +139,6 @@ func (c *ec2Client) addOrUpdate(cl cluster) {
 	if !ok || !reflect.DeepEqual(cl.ClusterAdvertisement, old.ClusterAdvertisement) {
 		fmt.Printf("Updating: %+v\n", cl)
 		c.client.PublishUpdate(&cl.ClusterAdvertisement)
-	} else {
-		fmt.Println("new or equal", id)
 	}
 	if old.RequestId == "" && cl.RequestId != "" {
 		c.requests[cl.RequestId] = cl.ClusterId
@@ -306,9 +309,7 @@ func shouldShutdown(cl *cluster) bool {
 	if !cl.InstanceStarted || cl.State != warden.ClusterAdvertisement_AVAILABLE {
 		return false
 	}
-	delta := time.Since(cl.LaunchTime)
-	delta = delta - time.Duration(delta.Hours()) // remove the hours
-	fmt.Println(time.Hour - delta)
+	delta := time.Since(cl.LaunchTime) % time.Hour // remove the hours
 	if time.Hour-delta <= updatePollingInterval {
 		return true
 	}
