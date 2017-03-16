@@ -158,6 +158,7 @@ func (c *ec2Client) terminateInstance(cl cluster) {
 		fmt.Println(err)
 	}
 
+	fmt.Printf("Terminating %s (%s)\n", cl.ClusterId, cl.InstanceId)
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	c.addOrUpdate(emptyCluster(cl.ClusterId))
