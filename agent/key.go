@@ -1,13 +1,13 @@
 package agent
 
 import (
-	"crypto/rsa"
-	"crypto/rand"
-	"crypto/x509"
-	"golang.org/x/crypto/ssh"
-	"encoding/pem"
-	"bytes"
 	"bufio"
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"golang.org/x/crypto/ssh"
 )
 
 const KeyLength = 2048 //bits
@@ -23,7 +23,7 @@ func GenerateKeyPair() (privateKey, publicKey string, err error) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	err = pem.Encode(w, &pem.Block{Type: "RSA PRIVATE KEY",
-				Bytes: x509.MarshalPKCS1PrivateKey(pk)})
+		Bytes: x509.MarshalPKCS1PrivateKey(pk)})
 	if err != nil {
 		return
 	}

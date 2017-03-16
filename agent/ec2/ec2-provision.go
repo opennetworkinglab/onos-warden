@@ -6,11 +6,11 @@ import (
 	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
 	"golang.org/x/crypto/ssh"
+	"io"
 	"net"
+	"os"
 	"sync"
 	"time"
-	"os"
-	"io"
 )
 
 func writer(cl *cluster, name string) (io.Writer, error) {
