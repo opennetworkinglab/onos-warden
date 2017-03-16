@@ -277,17 +277,15 @@ func clusterFromInstance(inst *ec2.Instance) (c cluster, err error) {
 	if provisioned && c.State == warden.ClusterAdvertisement_RESERVED {
 		c.State = warden.ClusterAdvertisement_READY
 	}
-	//FIXME index 0 is the network node
 	if cap(c.Nodes) > 0 {
-		ipNum := IpBase
 		for i := range c.Nodes {
-			ipNum++
+			var cn warden.ClusterAdvertisement_ClusterNode
+			// Note: index 0 is the network node
+			cn.Id = uint32(i)
+
 			ip := make(net.IP, 4)
-			binary.BigEndian.PutUint32(ip, ipNum)
-			c.Nodes[i] = &warden.ClusterAdvertisement_ClusterNode{
-				Id: uint32(i + 1),
-				Ip: ip.String(),
-			}
+			binary.BigEndian.PutUint32(ip, IpBase+uint32(i))
+			cn.Ip = ip.String()
 		}
 	}
 	return

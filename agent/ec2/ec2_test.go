@@ -1,22 +1,22 @@
 package main
 
 import (
+	"fmt"
+	"github.com/opennetworkinglab/onos-warden/warden"
 	"testing"
 	"time"
-	"github.com/opennetworkinglab/onos-warden/warden"
-	"fmt"
 )
 
 func TestShouldShutdown(t *testing.T) {
-		//t.Error("Expected 1.5, got ", v)
+	//t.Error("Expected 1.5, got ", v)
 	testStart := time.Now()
 	baseCluster := cluster{
-		LaunchTime: testStart,
+		LaunchTime:      testStart,
 		InstanceStarted: true,
 	}
 	baseCluster.State = warden.ClusterAdvertisement_AVAILABLE
 
-	t.Run("not started, not available", func (t *testing.T) {
+	t.Run("not started, not available", func(t *testing.T) {
 		c := baseCluster
 		c.InstanceStarted = false
 		c.State = warden.ClusterAdvertisement_UNAVAILABLE
@@ -24,14 +24,14 @@ func TestShouldShutdown(t *testing.T) {
 			t.Error("Should shutdown returned true, expected false")
 		}
 	})
-	t.Run("started, not available", func (t *testing.T) {
+	t.Run("started, not available", func(t *testing.T) {
 		c := baseCluster
 		c.State = warden.ClusterAdvertisement_UNAVAILABLE
 		if shouldShutdown(&c) {
 			t.Error("Should shutdown returned true, expected false")
 		}
 	})
-	t.Run("not started, available", func (t *testing.T) {
+	t.Run("not started, available", func(t *testing.T) {
 		c := baseCluster
 		c.InstanceStarted = false
 		if shouldShutdown(&c) {
@@ -44,7 +44,7 @@ func TestShouldShutdown(t *testing.T) {
 		n := fmt.Sprintf("Now - %d min, available", i)
 		t.Run(n, func(m int) func(t *testing.T) {
 			return func(t *testing.T) {
-				expected := 60 - (i % 60) <= int(updatePollingInterval / time.Minute)
+				expected := 60-(i%60) <= int(updatePollingInterval/time.Minute)
 				delta := time.Duration(-i * int(time.Minute))
 				c := baseCluster
 				c.LaunchTime = time.Now().Add(delta)
