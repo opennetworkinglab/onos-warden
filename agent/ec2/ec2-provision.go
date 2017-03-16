@@ -34,7 +34,7 @@ func (c *ec2Client) provisionCluster(cl *cluster, userKey string) error {
 		}
 	}
 	if connection == nil {
-		fmt.Println("Failed to dial: %s\n", err)
+		fmt.Println("Failed to dial:", err)
 		return err
 	} else {
 		fmt.Println()

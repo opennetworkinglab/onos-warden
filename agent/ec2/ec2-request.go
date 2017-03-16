@@ -286,6 +286,7 @@ func clusterFromInstance(inst *ec2.Instance) (c cluster, err error) {
 			ip := make(net.IP, 4)
 			binary.BigEndian.PutUint32(ip, IpBase+uint32(i))
 			cn.Ip = ip.String()
+			c.Nodes[i] = &cn
 		}
 	}
 	return

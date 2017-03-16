@@ -117,7 +117,7 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 			return nil
 		}
 		if err != nil {
-			fmt.Println("agent stream error", stream)
+			fmt.Println("agent stream error", stream, err)
 			return err
 		}
 		fmt.Println(in)
