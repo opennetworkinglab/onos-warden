@@ -13,6 +13,8 @@ import (
 	"reflect"
 	"sync"
 	"time"
+	"flag"
+	"os"
 )
 
 type cluster struct {
@@ -28,7 +30,7 @@ const (
 	DefaultAwsRegion       string = "us-west-1"
 	ClusterType                   = "ec2"
 	InstanceName                  = "warden-cell"
-	InstanceImageId               = "ami-a17128c1"
+	InstanceImageId               = "ami-84da82e4"
 	InstanceType                  = "m3.medium"
 	KeyName                       = "onos-warden"
 	MaxPrice                      = "1" // $1/hr, TODO make this dynamic
@@ -39,15 +41,17 @@ const (
 var IpBase = binary.BigEndian.Uint32(net.ParseIP("10.0.1.100")[12:16])
 
 type ec2Client struct {
-	svc      *ec2.EC2
-	client   agent.WardenClient
-	clusters map[string]cluster
-	requests map[string]string
-	limit    int
-	mux      sync.Mutex
+	svc        *ec2.EC2
+	client     agent.WardenClient
+	clusters   map[string]cluster
+	requests   map[string]string
+	limit      int
+	mux        sync.Mutex
+	ec2User    string
+	ec2KeyFile string
 }
 
-func NewEC2Client(region string, limit int) (agent.Worker, error) {
+func NewEC2Client(region string, limit int) (*ec2Client, error) {
 	var c ec2Client
 
 	sess, err := session.NewSession()
@@ -206,7 +210,7 @@ func (c *ec2Client) reserveCluster(req *warden.ClusterRequest) (*cluster, error)
 	cl.ReservationInfo = &warden.ClusterAdvertisement_ReservationInfo{
 		UserName:             req.Spec.UserName,
 		Duration:             req.Duration,
-		ReservationStartTime: uint32(time.Now().Unix()),
+		ReservationStartTime: time.Now().Unix(),
 	}
 
 	c.tagInstance(cl.InstanceId, cl)
@@ -286,7 +290,18 @@ func (c *ec2Client) returnCluster(req *warden.ClusterRequest) error {
 }
 
 func main() {
-	agent.Run(NewEC2Client(DefaultAwsRegion, 3))
+	c, cErr := NewEC2Client(DefaultAwsRegion, 3)
+	flag.StringVar(&c.ec2KeyFile, "keyFile", "", "Private key file used to ssh into newly created EC2 instances")
+	flag.StringVar(&c.ec2User, "user", "ubuntu", "Username used to ssh into newly created EC2 instances")
+	flag.Parse()
+	if c.ec2KeyFile == "" {
+		flag.Usage()
+		os.Exit(1)
+	} else if _, err := os.Stat(c.ec2KeyFile); err != nil {
+		fmt.Fprintln(os.Stderr,"Key file not found:", c.ec2KeyFile)
+		os.Exit(1)
+	}
+	agent.Run(c, cErr)
 }
 
 func getPlaceholderCluster(i int) cluster {

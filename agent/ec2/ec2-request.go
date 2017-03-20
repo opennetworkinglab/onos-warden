@@ -250,15 +250,15 @@ func clusterFromInstance(inst *ec2.Instance) (c cluster, err error) {
 		case "Cell-Size":
 			i, err := strconv.ParseUint(v, 10, 32)
 			if err == nil {
-				c.Nodes = make([]*warden.ClusterAdvertisement_ClusterNode, i)
+				c.Nodes = make([]*warden.ClusterAdvertisement_ClusterNode, i+1)
 				c.Size = uint32(i)
 			} else {
 				fmt.Println("Failed to parse Cell-Size", v, err)
 			}
 		case "Cell-Start":
-			i, err := strconv.ParseUint(v, 10, 32)
+			i, err := strconv.ParseInt(v, 10, 64)
 			if err == nil {
-				c.ReservationInfo.ReservationStartTime = uint32(i)
+				c.ReservationInfo.ReservationStartTime = i
 			} else {
 				fmt.Println("Failed to parse Cell-Start", v, err)
 			}

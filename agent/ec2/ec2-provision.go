@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const SshPort = 822
+
 func writer(cl *cluster, name string) (io.Writer, error) {
 	dirpath := fmt.Sprintf("/tmp/%s-%s/", cl.ClusterId, cl.ClusterType)
 	err := os.MkdirAll(dirpath, 0755)
@@ -31,11 +33,10 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 	fmt.Printf("Provisioning cluster %s (%s) at %s\n", cl.ClusterId, cl.InstanceId, cl.HeadNodeIP)
 	var err error
 
-	addr := fmt.Sprintf("%s:%d", cl.HeadNodeIP, 22)
-	user, key := "ubuntu", "/Users/bocon/.ssh/onos-warden.pem"
+	addr := fmt.Sprintf("%s:%d", cl.HeadNodeIP, SshPort)
 
 	fmt.Print("Dialing...")
-	config, err := agent.GetConfig(user, key)
+	config, err := agent.GetConfig(c.ec2User, c.ec2KeyFile)
 	if err != nil {
 		return err
 	}
@@ -61,9 +62,6 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 		return err
 	}
 
-	//FIXME copy internal key into container
-	//FIXME copy user key into container
-
 	var wg sync.WaitGroup
 	wg.Add(int(cl.Size) + 1)
 	ip := IpBase
@@ -72,7 +70,7 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 		ip := make(net.IP, 4)
 		binary.BigEndian.PutUint32(ip, ipNum)
 		log, err := writer(cl, name)
-		if err {
+		if err != nil {
 			fmt.Println(err)
 			return
 		}
@@ -89,7 +87,7 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 			ip := make(net.IP, 4)
 			binary.BigEndian.PutUint32(ip, ipNum)
 			log, err := writer(cl, name)
-			if err {
+			if err != nil {
 				fmt.Println(err)
 				return
 			}
@@ -133,9 +131,11 @@ func logAndRunCmd(c *ssh.Client, log io.Writer, cmd, stdin string) (err error) {
 }
 
 func createContainer(c *ssh.Client, log io.Writer, name, ip, baseImage string) (err error) {
-	logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-stop -n %s", name), "")
-	logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-destroy -n %s", name), "")
-	err = logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-copy -n %s -N %s", baseImage, name), "")
+	// destroy the container if it already exists
+	destroyContainer(c, log, name, false)
+
+	//TODO make snap0 configurable
+	err = logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-copy -n %s -s snap0 -B overlay -N %s", baseImage, name), "")
 	if err != nil {
 		return
 	}
@@ -148,11 +148,9 @@ func createContainer(c *ssh.Client, log io.Writer, name, ip, baseImage string) (
 	if err != nil {
 		return
 	}
-	err = logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-attach -n %s -- ping -c1 8.8.8.8", name), "")
-	if err != nil {
-		return
-	}
-	err = logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-attach -n %s -- ping -c1 8.8.8.8", name), "")
+	err = logAndRunCmd(c, log,
+		fmt.Sprintf("sudo lxc-attach -n %s -- sed -i \"s/127.0.1.1.*/127.0.1.1   %s/\" /etc/hosts", name, name),
+		"")
 	if err != nil {
 		return
 	}
@@ -160,30 +158,55 @@ func createContainer(c *ssh.Client, log io.Writer, name, ip, baseImage string) (
 	return
 }
 
+func destroyContainer(c *ssh.Client, log io.Writer, name string, failOnError bool) error {
+	var err error
+	err = logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-stop -n %s", name), "")
+	if err != nil && failOnError {
+		return err
+	}
+	err = logAndRunCmd(c, log, fmt.Sprintf("sudo lxc-destroy -n %s", name), "")
+	if err != nil && failOnError {
+		return err
+	}
+	return nil
+}
+
 func addAuthorizedKey(c *ssh.Client, log io.Writer, name, pubKey string) (err error) {
-	cmd := fmt.Sprintf("sudo lxc-attach -n %s -- tee -a ~/.ssh/authorized_keys", name)
+	//TODO make the user configurable
+	cmd := fmt.Sprintf("sudo lxc-attach -n %s -- tee -a /home/sdn/.ssh/authorized_keys", name)
 	err = logAndRunCmd(c, log, cmd, pubKey)
 	return
 }
 
 func addKeyPair(c *ssh.Client, log io.Writer, name, privKey, pubKey string) (err error) {
 	var cmd string
-	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- tee ~/.ssh/id_rsa", name)
+	//TODO make the user configurable
+	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- tee /home/sdn/.ssh/id_rsa", name)
 	err = logAndRunCmd(c, log, cmd, privKey)
 	if err != nil {
 		return
 	}
-	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- chmod 400 ~/.ssh/id_rsa", name)
-	err = logAndRunCmd(c, log, cmd, privKey)
+	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- chmod 400 /home/sdn/.ssh/id_rsa", name)
+	err = logAndRunCmd(c, log, cmd, "")
 	if err != nil {
 		return
 	}
-	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- tee ~/.ssh/id_rsa.pub", name)
+	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- chown sdn:sdn /home/sdn/.ssh/id_rsa", name)
+	err = logAndRunCmd(c, log, cmd, "")
+	if err != nil {
+		return
+	}
+	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- tee /home/sdn/.ssh/id_rsa.pub", name)
 	err = logAndRunCmd(c, log, cmd, pubKey)
 	if err != nil {
 		return
 	}
-	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- chmod 400 ~/.ssh/id_rsa.pub", name)
-	err = logAndRunCmd(c, log, cmd, privKey)
+	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- chmod 400 /home/sdn/.ssh/id_rsa.pub", name)
+	err = logAndRunCmd(c, log, cmd, "")
+	if err != nil {
+		return
+	}
+	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- chown sdn:sdn /home/sdn/.ssh/id_rsa.pub", name)
+	err = logAndRunCmd(c, log, cmd, "")
 	return
 }
