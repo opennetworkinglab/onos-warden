@@ -99,10 +99,10 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 			//TODO maybe we should time these out instead? in case, the agent is coming right back
 			if cl.agent == stream {
 				delete(s.clusters, id)
-			}
-			if rId := cl.ad.RequestId; rId != "" {
-				delete(s.requests, rId)
-				//TODO need to send UNAVAILABLE
+				if rId := cl.ad.RequestId; rId != "" {
+					delete(s.requests, rId)
+					//TODO need to send UNAVAILABLE
+				}
 			}
 		}
 		delete(s.agents, stream)
@@ -154,7 +154,6 @@ func (s *wardenServer) AgentClusters(stream warden.ClusterAgentService_AgentClus
 func (s *wardenServer) processRequests() {
 	for {
 		request := <-s.incomingReq
-		fmt.Println()
 		req := request.req
 		client := request.client
 
