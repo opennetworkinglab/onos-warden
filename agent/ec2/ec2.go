@@ -30,8 +30,8 @@ const (
 	DefaultAwsRegion       string = "us-west-1"
 	ClusterType                   = "ec2"
 	InstanceName                  = "warden-cell"
-	InstanceImageId               = "ami-84da82e4"
-	InstanceType                  = "m3.medium"
+	InstanceImageId               = "ami-3fcb935f"
+	InstanceType                  = "m3.xlarge"
 	KeyName                       = "onos-warden"
 	MaxPrice                      = "1" // $1/hr, TODO make this dynamic
 	updatePollingInterval         = 2 * time.Minute

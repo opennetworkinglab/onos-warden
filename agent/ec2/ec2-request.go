@@ -76,26 +76,8 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 
 	fmt.Print("Wait for start...")
 	for { // Wait for instance to start
-		out, err := c.svc.DescribeInstances(&ec2.DescribeInstancesInput{
-			InstanceIds: aws.StringSlice([]string{cl.InstanceId}),
-		})
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		// Collect the cluster updates
-		var targetCl *cluster
-		for _, res := range out.Reservations {
-			for _, inst := range res.Instances {
-				cl, err := clusterFromInstance(inst)
-				if err == nil {
-					targetCl = &cl
-				}
-			}
-		}
-
-		if targetCl != nil && targetCl.InstanceStarted {
+		targetCl, err := c.getInstance(cl.InstanceId)
+		if err != nil && targetCl != nil && targetCl.InstanceStarted {
 			// Copy the node IP over from the newly created instance
 			cl.HeadNodeIP = targetCl.HeadNodeIP
 			fmt.Println(cl)
@@ -162,6 +144,25 @@ func (c *ec2Client) terminateInstance(cl cluster) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 	c.addOrUpdate(emptyCluster(cl.ClusterId))
+}
+
+func (c *ec2Client) getInstance(id string) (*cluster, error) {
+	out, err := c.svc.DescribeInstances(&ec2.DescribeInstancesInput{
+		InstanceIds: aws.StringSlice([]string{id}),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, res := range out.Reservations {
+		for _, inst := range res.Instances {
+			cl, err := clusterFromInstance(inst)
+			if err == nil {
+				return &cl, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("instance %s was not found", id)
 }
 
 func (c *ec2Client) updateInstances() error {

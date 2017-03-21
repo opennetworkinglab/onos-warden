@@ -63,9 +63,9 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(int(cl.Size) + 1)
 	ip := IpBase
-	go func(ipNum uint32) {
+	//TODO this can be async if acceptHostKey is done after wait group
+	func(ipNum uint32) {
 		name := "onos-n"
 		ip := make(net.IP, 4)
 		binary.BigEndian.PutUint32(ip, ipNum)
@@ -78,8 +78,9 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 		addKeyPair(connection, log, name, internalPrivKey, internalPubKey)
 		addAuthorizedKey(connection, log, name, userPubKey)
 		addAuthorizedKey(connection, log, name, internalPubKey)
-		wg.Done()
+		//wg.Done() TODO add this back if we make this async
 	}(ip)
+	wg.Add(int(cl.Size)) // wait for onos instance containers
 	for i := 1; i <= int(cl.Size); i++ {
 		ip++
 		go func(i int, ipNum uint32) {
@@ -92,7 +93,10 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 				return
 			}
 			createContainer(connection, log, name, ip.String(), "ctrl-base")
+			addKeyPair(connection, log, name, internalPrivKey, internalPubKey)
+			addAuthorizedKey(connection, log, name, userPubKey)
 			addAuthorizedKey(connection, log, name, internalPubKey)
+			acceptHostKey(connection, log, "onos-n", ip.String())
 			wg.Done()
 		}(i, ip)
 	}
@@ -101,9 +105,13 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 	cl.State = warden.ClusterAdvertisement_READY
 	c.tagInstance(cl.InstanceId, cl)
 
+	updatedCl, err := c.getInstance(cl.InstanceId)
+	if err != nil {
+		return err
+	}
 	c.mux.Lock()
 	defer c.mux.Unlock()
-	c.addOrUpdate(*cl)
+	c.addOrUpdate(*updatedCl)
 	return nil
 }
 
@@ -209,4 +217,10 @@ func addKeyPair(c *ssh.Client, log io.Writer, name, privKey, pubKey string) (err
 	cmd = fmt.Sprintf("sudo lxc-attach -n %s -- chown sdn:sdn /home/sdn/.ssh/id_rsa.pub", name)
 	err = logAndRunCmd(c, log, cmd, "")
 	return
+}
+
+func acceptHostKey(c *ssh.Client, log io.Writer, name, remoteIp string) error {
+	//TODO make user dynamic
+	cmd := fmt.Sprintf("sudo lxc-attach -n %s -- sudo -u sdn ssh -n -o StrictHostKeyChecking=no -o PasswordAuthentication=no sdn@%s hostname", name, remoteIp)
+	return logAndRunCmd(c, log, cmd, "")
 }
