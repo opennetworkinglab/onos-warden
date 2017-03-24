@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -10,11 +11,10 @@ import (
 	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
 	"net"
+	"os"
 	"reflect"
 	"sync"
 	"time"
-	"flag"
-	"os"
 )
 
 type cluster struct {
@@ -298,7 +298,7 @@ func main() {
 		flag.Usage()
 		os.Exit(1)
 	} else if _, err := os.Stat(c.ec2KeyFile); err != nil {
-		fmt.Fprintln(os.Stderr,"Key file not found:", c.ec2KeyFile)
+		fmt.Fprintln(os.Stderr, "Key file not found:", c.ec2KeyFile)
 		os.Exit(1)
 	}
 	agent.Run(c, cErr)

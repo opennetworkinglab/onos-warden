@@ -77,7 +77,7 @@ func (c *ec2Client) makeSpotRequest(cl *cluster) error {
 	fmt.Print("Wait for start...")
 	for { // Wait for instance to start
 		targetCl, err := c.getInstance(cl.InstanceId)
-		if err != nil && targetCl != nil && targetCl.InstanceStarted {
+		if err == nil && targetCl != nil && targetCl.InstanceStarted {
 			// Copy the node IP over from the newly created instance
 			cl.HeadNodeIP = targetCl.HeadNodeIP
 			fmt.Println(cl)

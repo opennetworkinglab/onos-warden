@@ -86,7 +86,7 @@ func (c *client) Handle(req *warden.ClusterRequest) {
 		ad.ReservationInfo = &warden.ClusterAdvertisement_ReservationInfo{
 			UserName:             req.Spec.UserName,
 			Duration:             req.Duration,
-			ReservationStartTime: uint32(time.Now().Unix()),
+			ReservationStartTime: time.Now().Unix(),
 		}
 		ad.Nodes = make([]*warden.ClusterAdvertisement_ClusterNode, req.Spec.ControllerNodes)
 		for i := range ad.Nodes {
@@ -100,7 +100,7 @@ func (c *client) Handle(req *warden.ClusterRequest) {
 		}
 		go func(a warden.ClusterAdvertisement) {
 			// update a copy after 5 seconds to simulate provisioning
-			time.Sleep(10 * time.Second)
+			time.Sleep(5 * time.Second)
 			a.State = warden.ClusterAdvertisement_READY
 			c.updateRequest(&a)
 		}(ad)

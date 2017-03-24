@@ -10,91 +10,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/signal"
 	"os/user"
 	"regexp"
+	"time"
 )
-
-type client struct {
-	stream warden.ClusterClientService_ServerClustersClient
-	ads    chan *warden.ClusterAdvertisement
-}
-
-func New(addr string) *client {
-	c := client{
-		ads: make(chan *warden.ClusterAdvertisement),
-	}
-
-	conn, err := grpc.Dial(addr, grpc.WithInsecure())
-	if err != nil {
-		grpclog.Fatalf("fail to dial: %v", err)
-	}
-	client := warden.NewClusterClientServiceClient(conn)
-
-	c.stream, err = client.ServerClusters(context.Background())
-	if err != nil {
-		grpclog.Fatalf("%v.ServerClusters(_) = _, %v", client, err)
-	}
-
-	go func() {
-		for {
-			ad, err := c.stream.Recv()
-			if err == io.EOF {
-				// stream closed
-				grpclog.Fatalln("Stream closed unexpectedly")
-			}
-			if err != nil {
-				grpclog.Fatalf("Failed to receive: %v", err)
-			}
-			c.ads <- ad
-		}
-	}()
-	return &c
-}
-
-func (c *client) sendRequest(baseRequest warden.ClusterRequest, t warden.ClusterRequest_RequestType) {
-	baseRequest.Type = t
-	c.stream.Send(&baseRequest)
-}
-
-func match(a, b *warden.ClusterAdvertisement) bool {
-	if a == nil || b == nil {
-		return false
-	}
-	return a.ClusterId == b.ClusterId && a.ClusterType == b.ClusterType
-}
-
-func (c *client) waitCluster(baseRequest warden.ClusterRequest) *warden.ClusterAdvertisement {
-	intrChan := make(chan os.Signal)
-	signal.Notify(intrChan, os.Interrupt, os.Kill)
-	var cluster *warden.ClusterAdvertisement
-	for {
-		select {
-		case <-intrChan:
-			os.Exit(1)
-		case ad := <-c.ads:
-			if match(ad, cluster) {
-				switch ad.State {
-				case warden.ClusterAdvertisement_AVAILABLE:
-					fallthrough
-				case warden.ClusterAdvertisement_UNAVAILABLE:
-					fmt.Println("Cluster no longer available")
-					c.sendRequest(baseRequest, warden.ClusterRequest_RETURN)
-					os.Exit(1)
-				}
-			}
-
-			if ad.RequestId == baseRequest.RequestId {
-				cluster = ad
-				if ad.State == warden.ClusterAdvertisement_READY {
-					return cluster
-				} else if ad.State == warden.ClusterAdvertisement_RESERVED {
-					//fmt.Println("Waiting for", cluster)
-				}
-			}
-		}
-	}
-}
 
 func printCell(cl *warden.ClusterAdvertisement) {
 	fmt.Println("export ONOS_CELL=borrow")
@@ -123,6 +42,52 @@ func printCell(cl *warden.ClusterAdvertisement) {
 	fmt.Println("export ONOS_WEB_PASS=rocks")
 }
 
+func printCluster(cl *warden.ClusterAdvertisement) {
+	fmt.Printf("%+v\n", cl)
+}
+
+func sendRequest(req *warden.ClusterRequest,
+	client warden.ClusterClientServiceClient,
+	ctx context.Context) (reply chan struct{}) {
+	reply = make(chan struct{})
+	go func() {
+		ad, err := client.Request(ctx, req)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Requst failed: %v\n", err)
+		} else {
+			printCell(ad)
+		}
+		close(reply)
+	}()
+	return
+}
+
+func listClusters(client warden.ClusterClientServiceClient, ctx context.Context) (wait chan struct{}) {
+	wait = make(chan struct{})
+	go func() {
+		stream, err := client.List(ctx, &warden.Empty{})
+		if err != nil {
+			fmt.Fprint(os.Stderr, "Requst failed: %v\n", err)
+			return
+		}
+
+		for {
+			ad, err := stream.Recv()
+			if err == io.EOF {
+				// stream closed
+				break
+			}
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to receive: %v\n", err)
+				break
+			}
+			printCluster(ad)
+		}
+		close(wait)
+	}()
+	return
+}
+
 func main() {
 	currUser, err := user.Current()
 	if err != nil {
@@ -136,6 +101,7 @@ func main() {
 	nodes := flag.Uint64("nodes", 3, "number of nodes in cell")
 	addr := flag.String("addr", "127.0.0.1:1234", "address of warden")
 	reqId := flag.String("reqId", currUser.Username, "request id for reservation")
+	timeout := flag.Int64("timeout", -1, "duration in seconds to wait for reply; -1 for indefinitely")
 	flag.Parse()
 	if flag.NArg() == 0 {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] {reserve,status,return}\n", os.Args[0])
@@ -161,15 +127,50 @@ func main() {
 		},
 	}
 
-	c := New(*addr)
-	defer c.stream.CloseSend()
+	conn, err := grpc.Dial(*addr, grpc.WithInsecure())
+	if err != nil {
+		grpclog.Fatalf("fail to dial: %v", err)
+	}
+	defer conn.Close()
+
+	client := warden.NewClusterClientServiceClient(conn)
+
+	var waitReq chan struct{}
+	ctx, cancel := context.WithCancel(context.Background())
 	switch op {
 	case "reserve":
-		c.sendRequest(req, warden.ClusterRequest_RESERVE)
+		req.Type = warden.ClusterRequest_RESERVE
+		waitReq = sendRequest(&req, client, ctx)
 	case "return":
-		c.sendRequest(req, warden.ClusterRequest_RETURN)
+		req.Type = warden.ClusterRequest_RETURN
+		waitReq = sendRequest(&req, client, ctx)
 	case "status":
-		cl := c.waitCluster(req)
-		printCell(cl)
+		fallthrough
+	case "cell":
+		req.Type = warden.ClusterRequest_STATUS
+		waitReq = sendRequest(&req, client, ctx)
+	case "extend":
+		req.Type = warden.ClusterRequest_EXTEND
+		waitReq = sendRequest(&req, client, ctx)
+	case "list":
+		waitReq = listClusters(client, ctx)
+	}
+
+	if waitReq != nil {
+		if *timeout < 0 {
+			<-waitReq
+		} else if *timeout == 0 {
+			return
+		} else {
+			select {
+			case <-time.After(time.Duration(*timeout) * time.Second):
+				// Timed out before request completed; Cancel request and wait for error
+				cancel()
+				<-waitReq
+			case <-waitReq:
+				// Request completed before timeout
+				break
+			}
+		}
 	}
 }

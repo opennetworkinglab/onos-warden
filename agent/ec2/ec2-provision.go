@@ -78,6 +78,7 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 		addKeyPair(connection, log, name, internalPrivKey, internalPubKey)
 		addAuthorizedKey(connection, log, name, userPubKey)
 		addAuthorizedKey(connection, log, name, internalPubKey)
+		acceptHostKey(connection, log, name, ip.String())
 		//wg.Done() TODO add this back if we make this async
 	}(ip)
 	wg.Add(int(cl.Size)) // wait for onos instance containers
@@ -105,6 +106,7 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 	cl.State = warden.ClusterAdvertisement_READY
 	c.tagInstance(cl.InstanceId, cl)
 
+	//FIXME there is something going on here where state != READY
 	updatedCl, err := c.getInstance(cl.InstanceId)
 	if err != nil {
 		return err
