@@ -11,6 +11,7 @@ import (
 	"net"
 	"sync"
 	"time"
+	"errors"
 )
 
 type cluster struct {
@@ -90,6 +91,9 @@ func (s *wardenServer) Request(ctx context.Context, req *warden.ClusterRequest) 
 		return nil, err
 	}
 	ad = <-wait
+	if ad == nil {
+		return nil, errors.New("Unable to process request")
+	}
 	logClient(ctx, "Sending ad to", ad)
 	return ad, nil
 }
@@ -383,14 +387,15 @@ func (s *wardenServer) cleanupStaleClusters() {
 					}
 					end := time.Unix(info.ReservationStartTime, 0)
 					end = end.Add(time.Duration(info.Duration) * time.Minute)
-					if end.After(time.Now()) {
-						// Reservation has not expired yet
-						fmt.Println("Time remaining in seconds", cl.ad.ClusterId, cl.ad.ClusterType, end.Sub(time.Now()))
+					if end.Before(time.Now()) {
+						fmt.Println("Reservation expired:", cl.ad)
+						s.returnCluster(&cl)
 						continue
+					} else {
+						fmt.Println("Time remaining in seconds", cl.ad.ClusterId, cl.ad.ClusterType, end.Sub(time.Now()))
+
 					}
 				}
-				fmt.Println("Cluster timed out:", cl.ad)
-				s.returnCluster(&cl)
 			}
 		}
 		s.lock.Unlock()
