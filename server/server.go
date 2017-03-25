@@ -176,19 +176,15 @@ func (s *wardenServer) updateCluster(cl *cluster) {
 		s.requests[cl.ad.RequestId] = k
 	}
 
-	fmt.Println("DEBUG: Got cluster", cl.ad)
 	// If the cluster is ready, update all local waiters for this cluster
 	if cl.ad.State == warden.ClusterAdvertisement_READY {
 		w, ok := s.waiters[k]
 		if ok {
-			fmt.Printf("DEBUG: %d waiter(s) on %v\n", len(w), k)
 			for _, ch := range w {
 				ch <- cl.ad
 			}
 			// Remove the waiters, now that they have been updated
 			delete(s.waiters, k)
-		} else {
-			fmt.Println("DEBUG: No waiters on", k)
 		}
 	}
 
@@ -310,7 +306,6 @@ func (s *wardenServer) waitForReady(cl *cluster) (wait chan *warden.ClusterAdver
 	if cl.ad.State == warden.ClusterAdvertisement_READY {
 		// cluster is already ready, return immediately
 		wait <- cl.ad
-		fmt.Println("DEBUG: not waiting")
 		return
 	}
 	// register this channel with the server to listen for updates
@@ -321,7 +316,6 @@ func (s *wardenServer) waitForReady(cl *cluster) (wait chan *warden.ClusterAdver
 	} else {
 		l = append(l, wait)
 	}
-	fmt.Println("DEBUG: waiters for", k, ":", l)
 	s.waiters[k] = l
 	return wait
 }
