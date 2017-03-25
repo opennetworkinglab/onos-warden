@@ -124,9 +124,14 @@ func (c *ec2Client) Handle(req *warden.ClusterRequest) {
 		}
 	case warden.ClusterRequest_RETURN:
 		fmt.Println("Got return", req)
-		err := c.returnCluster(req)
+		cl, err := c.returnCluster(req)
 		if err != nil {
 			fmt.Println("Unable process return", req, err)
+			return
+		}
+		err = c.destroyCluster(cl)
+		if err != nil {
+			fmt.Println("Unable destroy cluster", req, err)
 			return
 		}
 	default:
@@ -153,7 +158,7 @@ func (c *ec2Client) addOrUpdate(cl cluster) {
 
 }
 
-func (c *ec2Client) reserveCluster(req *warden.ClusterRequest) (*cluster, error) {
+func (c *ec2Client) reserveCluster(req *warden.ClusterRequest) (cl *cluster, err error) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -172,24 +177,26 @@ func (c *ec2Client) reserveCluster(req *warden.ClusterRequest) (*cluster, error)
 	}
 	if cId != "" {
 		v, ok := c.clusters[cId]
+		if !ok || v.State != warden.ClusterAdvertisement_AVAILABLE {
+			return nil, fmt.Errorf("cluster %v not available", req.ClusterId)
+		}
 		if ok && (v.State == warden.ClusterAdvertisement_RESERVED || v.State == warden.ClusterAdvertisement_READY) {
 			return &v, nil
-		} else {
-			fmt.Println("error... cluster is not reserved", v, req)
-			return nil, errors.New("error")
 		}
 	}
 
-	var cl, placeholder *cluster
-	// reserve an available cluster
-	for _, v := range c.clusters {
-		if v.State == warden.ClusterAdvertisement_AVAILABLE {
-			if v.InstanceId != "" {
-				// return the first available, instantiated cell
-				cl = &v
-				break
-			} else if placeholder == nil {
-				placeholder = &v
+	var placeholder *cluster
+	if cl == nil {
+		// reserve an available cluster
+		for _, v := range c.clusters {
+			if v.State == warden.ClusterAdvertisement_AVAILABLE {
+				if v.InstanceId != "" {
+					// return the first available, instantiated cell
+					cl = &v
+					break
+				} else if placeholder == nil {
+					placeholder = &v
+				}
 			}
 		}
 	}
@@ -259,7 +266,7 @@ func (c *ec2Client) extendCluster(req *warden.ClusterRequest) (*cluster, error) 
 	return &cl, nil
 }
 
-func (c *ec2Client) returnCluster(req *warden.ClusterRequest) error {
+func (c *ec2Client) returnCluster(req *warden.ClusterRequest) (*cluster, error) {
 	c.mux.Lock()
 	defer c.mux.Unlock()
 
@@ -269,24 +276,25 @@ func (c *ec2Client) returnCluster(req *warden.ClusterRequest) error {
 		if ok {
 			if cId != "" && cId != v {
 				// request is present; cId does not match request's cluster id
-				return errors.New("provided cluster id does not match reserved one")
+				return nil, errors.New("provided cluster id does not match reserved one")
 			} else {
 				// uses the request's existing cluster id
 				cId = v
 			}
 		}
 	}
-	cl, ok := c.clusters[cId]
+	oldCl, ok := c.clusters[cId]
 	if !ok || cId == "" {
-		return errors.New("cluster not found")
+		return nil, errors.New("cluster not found")
 	}
 
+	cl := oldCl
 	cl.RequestId = ""
 	cl.State = warden.ClusterAdvertisement_AVAILABLE
 	cl.ReservationInfo = nil
 	c.tagInstance(cl.InstanceId, &cl)
 	c.addOrUpdate(cl)
-	return nil
+	return &oldCl, nil
 }
 
 func main() {

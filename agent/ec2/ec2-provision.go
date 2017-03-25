@@ -29,18 +29,13 @@ func writer(cl *cluster, name string) (io.Writer, error) {
 	return f, nil
 }
 
-func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
-	fmt.Printf("Provisioning cluster %s (%s) at %s\n", cl.ClusterId, cl.InstanceId, cl.HeadNodeIP)
-	var err error
-
+func (c *ec2Client) dialCluster(cl *cluster) (connection *ssh.Client, err error) {
 	addr := fmt.Sprintf("%s:%d", cl.HeadNodeIP, SshPort)
-
 	fmt.Print("Dialing...")
 	config, err := agent.GetConfig(c.ec2User, c.ec2KeyFile)
 	if err != nil {
-		return err
+		return
 	}
-	var connection *ssh.Client
 	for i := 0; i < 60; i++ {
 		connection, err = ssh.Dial("tcp", addr, config)
 		if err == nil {
@@ -52,9 +47,19 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 	}
 	if connection == nil {
 		fmt.Println("Failed to dial:", err)
-		return err
+		return
 	} else {
 		fmt.Println()
+	}
+	return
+}
+
+
+func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) (err error) {
+	fmt.Printf("Provisioning cluster %s (%s) at %s\n", cl.ClusterId, cl.InstanceId, cl.HeadNodeIP)
+	connection, err := c.dialCluster(cl)
+	if err != nil {
+		return err
 	}
 
 	internalPrivKey, internalPubKey, err := agent.GenerateKeyPair()
@@ -116,6 +121,49 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) error {
 	c.addOrUpdate(*updatedCl)
 	return nil
 }
+
+func (c *ec2Client) destroyCluster(cl *cluster) error {
+	fmt.Printf("Returning cluster %s (%s) at %s\n", cl.ClusterId, cl.InstanceId, cl.HeadNodeIP)
+	connection, err := c.dialCluster(cl)
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(int(cl.Size + 1))
+	ip := IpBase
+	go func(ipNum uint32) {
+		name := "onos-n"
+		ip := make(net.IP, 4)
+		binary.BigEndian.PutUint32(ip, ipNum)
+		log, err := writer(cl, name)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		destroyContainer(connection, log, name, false)
+		wg.Done()
+	}(ip)
+	// wait for onos instance containers
+	for i := 1; i <= int(cl.Size); i++ {
+		ip++
+		go func(i int, ipNum uint32) {
+			name := fmt.Sprintf("onos-%d", i)
+			ip := make(net.IP, 4)
+			binary.BigEndian.PutUint32(ip, ipNum)
+			log, err := writer(cl, name)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			destroyContainer(connection, log, name, false)
+			wg.Done()
+		}(i, ip)
+	}
+	wg.Wait()
+	return nil
+}
+
 
 func logAndRunCmd(c *ssh.Client, log io.Writer, cmd, stdin string) (err error) {
 	var stdout, stderr string
