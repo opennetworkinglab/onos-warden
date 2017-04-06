@@ -15,3 +15,4 @@ dependency-reduced-pom.xml
 buck-out
 node_modules
 /bazel-*
+*.pb.go
