@@ -1,0 +1,56 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# init.d script to run Warden server
+#
+# -----------------------------------------------------------------------------
+### BEGIN INIT INFO
+# Provides:          warden-server
+# Required-Start:    $network $syslog
+# Required-Stop:     $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Warden server
+# Description:       Warden server
+### END INIT INFO
+
+start () {
+    if [ ! -f /opt/warden/warden-server.pid ]; then
+        /opt/warden/warden-server >>/opt/warden/log/server.out 2>>/opt/warden/log/server.err &
+        echo $! >/opt/warden/warden-server.pid
+    fi
+}
+
+stop () {
+    kill $(cat /opt/warden/warden-server.pid)
+    rm /opt/warden/warden-server.pid
+}
+
+case $1 in
+    start)
+        start
+        ;;
+    stop | force-stop)
+        stop
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    status)
+        if [ -f /opt/warden/warden-server.pid ]; then
+           ps $(cat /opt/warden/warden-server.pid) &>/dev/null
+           if [[ $? -eq 0 ]]; then
+                echo " * warden-server is running"
+                exit 0
+           fi
+        fi
+        echo " * warden-server is not running"
+        exit 1
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

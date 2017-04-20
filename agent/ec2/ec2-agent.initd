@@ -1,0 +1,60 @@
+#!/bin/bash
+# -----------------------------------------------------------------------------
+# init.d script to run Warden EC2 agent
+#
+# -----------------------------------------------------------------------------
+### BEGIN INIT INFO
+# Provides:          warden-ec2-agent
+# Required-Start:    $network $syslog
+# Required-Stop:     $network $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Warden EC2 agent
+# Description:       Warden EC2 agent
+### END INIT INFO
+
+start () {
+    if [ ! -f /opt/warden/warden-ec2-agent.pid ]; then
+        HOME=/root /opt/warden/warden-ec2-agent -keyFile /opt/warden/onos-warden.pem >>/opt/warden/log/ec2-agent.out 2>>/opt/warden/log/ec2-agent.err &
+        echo $! >/opt/warden/warden-ec2-agent.pid
+    fi
+}
+
+stop () {
+    kill $(cat /opt/warden/warden-ec2-agent.pid)
+    rm /opt/warden/warden-ec2-agent.pid
+}
+
+status () {
+        if [ -f /opt/warden/warden-ec2-agent.pid ]; then
+           ps $(cat /opt/warden/warden-ec2-agent.pid) &>/dev/null
+           if [[ $? -eq 0 ]]; then
+                echo " * warden-ec2-agent is running"
+                exit 0
+           fi
+        fi
+        echo " * warden-ec2-agent is not running"
+        exit 1
+}
+
+case $1 in
+    start)
+        start
+        ;;
+    stop | force-stop)
+        stop
+        ;;
+    restart)
+        stop
+        start
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

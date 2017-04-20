@@ -1,1 +1,8 @@
 placeholder for go warden impl
+
+
+setup on server:
+
+copy server init.d file
+mkdir -p /opt/warden/log
+chmod warden to open
