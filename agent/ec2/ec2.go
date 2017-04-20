@@ -24,6 +24,7 @@ type cluster struct {
 	InstanceType    string
 	InstanceStarted bool
 	LaunchTime      time.Time
+	provisionMux	sync.Mutex
 }
 
 const (

@@ -57,6 +57,10 @@ func (c *ec2Client) dialCluster(cl *cluster) (connection *ssh.Client, err error)
 
 func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) (err error) {
 	fmt.Printf("Provisioning cluster %s (%s) at %s\n", cl.ClusterId, cl.InstanceId, cl.HeadNodeIP)
+	// Ensure only one provisioning task occurs at a time
+	cl.provisionMux.Lock()
+	defer cl.provisionMux.Unlock()
+
 	connection, err := c.dialCluster(cl)
 	if err != nil {
 		return err
@@ -124,6 +128,11 @@ func (c *ec2Client) provisionCluster(cl *cluster, userPubKey string) (err error)
 
 func (c *ec2Client) destroyCluster(cl *cluster) error {
 	fmt.Printf("Returning cluster %s (%s) at %s\n", cl.ClusterId, cl.InstanceId, cl.HeadNodeIP)
+	// Ensure only one provisioning task occurs at a time
+	cl.provisionMux.Lock()
+	defer cl.provisionMux.Unlock()
+
+
 	connection, err := c.dialCluster(cl)
 	if err != nil {
 		return err

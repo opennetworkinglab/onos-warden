@@ -148,8 +148,6 @@ func main() {
 		req.Type = warden.ClusterRequest_EXTEND
 		waitReq = sendRequest(&req, client, ctx)
 	case "status":
-		fallthrough
-	case "cell":
 		req.Type = warden.ClusterRequest_STATUS
 		waitReq = sendRequest(&req, client, ctx)
 	case "list":

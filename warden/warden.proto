@@ -95,6 +95,5 @@ service ClusterClientService {
 
     // Bi-directional stream where the client makes cluster resource requests
     // to the server and the server sends cluster resource advertisements to the client
-    rpc serverClusters (stream ClusterRequest) returns (stream ClusterAdvertisement) {
-    }
+    rpc serverClusters (stream ClusterRequest) returns (stream ClusterAdvertisement) {}
 }
