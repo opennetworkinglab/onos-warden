@@ -333,7 +333,8 @@ func (s *wardenServer) processRequest(req *warden.ClusterRequest) (chan *warden.
 
 	// Check to see if we have already reserved a cluster for this request
 	cl, found = s.lookupRequest(req)
-	if !found {
+
+	if !found && req.Type == warden.ClusterRequest_RESERVE {
 		// Assign the request to an available cluster
 		cl, found = s.assignRequest(req)
 	}
@@ -341,12 +342,14 @@ func (s *wardenServer) processRequest(req *warden.ClusterRequest) (chan *warden.
 		return nil, fmt.Errorf("No available clusters for req %s", req.RequestId)
 	}
 
-	// Forward the request to the agent
-	err := cl.agent.Send(req)
-	if err != nil {
-		return nil, err
-	} else {
-		logAgent(cl.agent.Context(), "Sending request to", req)
+	// Forward the request to the agent, except for status requests
+	if req.Type != warden.ClusterRequest_STATUS {
+		err := cl.agent.Send(req)
+		if err != nil {
+			return nil, err
+		} else {
+			logAgent(cl.agent.Context(), "Sending request to", req)
+		}
 	}
 
 	// Wait for the cluster to become ready
