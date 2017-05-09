@@ -13,7 +13,7 @@ sudo lxc-ls -F "name,ipv4" --fancy | grep $name | \
 
 echo "export OCT=\"10.128.11.1\""
 echo "export ONOS_USER=sdn"
-echo "export ONOS_USE_SSH=true"
+echo "export ONOS_GROUP=sdn"
 echo "export ONOS_APPS=${apps}"
-echo "export ONOS_WEB_USER=onos"
-echo "export ONOS_WEB_PASS=rocks"
+echo "export ONOS_WEB_USER=\${ONOS_WEB_USER:-onos}"
+echo "export ONOS_WEB_PASS=\${ONOS_WEB_PASS:-rocks}"
