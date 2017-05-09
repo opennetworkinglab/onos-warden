@@ -7,6 +7,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
 	"io"
+	"time"
+	"fmt"
 )
 
 type Handler interface {
@@ -14,7 +16,7 @@ type Handler interface {
 }
 
 type WardenClient interface {
-	PublishUpdate(ad *warden.ClusterAdvertisement)
+	PublishUpdate(ad *warden.ClusterAdvertisement) error
 	Teardown()
 }
 
@@ -22,62 +24,92 @@ type wardenClient struct {
 	conn   *grpc.ClientConn
 	stream warden.ClusterAgentService_AgentClustersClient
 	alive  bool
+	pub    chan *warden.ClusterAdvertisement
 }
 
 func NewWardenClient(target string, handler Handler, creds credentials.TransportCredentials) (*wardenClient, error) {
 	var wc wardenClient
 	var err error
-
 	var opts grpc.DialOption
+
 	if creds == nil {
 		opts = grpc.WithInsecure()
 	} else {
 		opts = grpc.WithTransportCredentials(creds)
 	}
-	wc.conn, err = grpc.Dial(target, opts)
+
+	err = wc.connect(target, opts)
 	if err != nil {
-		grpclog.Fatalf("fail to dial: %v", err)
-		return nil, err
-	}
-	client := warden.NewClusterAgentServiceClient(wc.conn)
-	wc.stream, err = client.AgentClusters(context.Background())
-	if err != nil {
-		grpclog.Fatalf("%v.ServerClusters(_) = _, %v", client, err)
-		wc.conn.Close()
 		return nil, err
 	}
 
 	go func() {
 		for {
-			in, err := wc.stream.Recv()
-			if err == io.EOF {
-				// TODO server has closed their side of the connection, when do we stop sending updates?
-				// let's stop now!
-				wc.Teardown()
-				return
-			}
-			if err != nil {
-				grpclog.Fatalf("Failed to receive: %v", err)
-			}
-			grpclog.Printf("Got message: %v", in)
-			if handler != nil {
-				handler.Handle(in)
+			err := wc.receive(handler)
+			fmt.Println("Receive error", err)
+			// try to reconnect on receive error
+			for i := 0; ; i++ {
+				err = wc.connect(target, opts)
+				if err == nil {
+					break
+				}
+				fmt.Println("Connect error error; retrying...", err)
+				time.Sleep(time.Duration(i) * 100 * time.Millisecond)
 			}
 		}
 	}()
-	wc.alive = true
+
 	return &wc, nil
 }
 
-func (c *wardenClient) PublishUpdate(ad *warden.ClusterAdvertisement) {
-	if c.alive == false {
-		//TODO keep calm, don't panic
-		panic("Trying to publish update to dead connection.")
-	}
-	err := c.stream.Send(ad)
+func (c *wardenClient) connect(target string, opts grpc.DialOption) (err error) {
+	c.conn, err = grpc.Dial(target, opts)
 	if err != nil {
-		panic(err)
+		grpclog.Printf("fail to dial: %v", err)
+		return
 	}
+	client := warden.NewClusterAgentServiceClient(c.conn)
+	c.stream, err = client.AgentClusters(context.Background())
+	if err != nil {
+		grpclog.Printf("failed to start stream: %v", err)
+		c.conn.Close()
+		return
+	}
+	return nil
+}
+
+func (c *wardenClient) receive(handler Handler) error {
+	for {
+		in, err := c.stream.Recv()
+		if err == io.EOF {
+			// TODO server has closed their side of the connection, when do we stop sending updates?
+			// let's stop now!
+			grpclog.Printf("Received EOF from server; tearing down...")
+			c.Teardown()
+			return err
+		}
+		if err != nil {
+			grpclog.Printf("Failed to receive: %v", err)
+			return err
+		}
+		grpclog.Printf("Got message: %v", in)
+		if handler != nil {
+			handler.Handle(in)
+		}
+	}
+}
+
+func (c *wardenClient) PublishUpdate(ad *warden.ClusterAdvertisement) (err error) {
+	// TODO this is pretty rudimentary
+	// retry 3 times with back-off
+	for i := 1; i <= 3; i++ {
+		err = c.stream.Send(ad)
+		if err == nil {
+			return
+		}
+		time.Sleep(time.Duration(i) * 100 * time.Millisecond)
+	}
+	return
 }
 
 func (c *wardenClient) Teardown() {

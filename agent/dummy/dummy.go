@@ -1,26 +1,26 @@
 package main
 
 import (
+	"encoding/binary"
+	"fmt"
 	"github.com/opennetworkinglab/onos-warden/agent"
 	"github.com/opennetworkinglab/onos-warden/warden"
-	"time"
-	"fmt"
-	"sync"
-	"reflect"
 	"net"
-	"encoding/binary"
+	"reflect"
+	"sync"
+	"time"
 )
 
 const (
-	numCells = 3
+	numCells    = 3
 	clusterType = "dummy"
 )
 
 type client struct {
-	grpc  agent.WardenClient
-	cells map[string]warden.ClusterAdvertisement
+	grpc     agent.WardenClient
+	cells    map[string]warden.ClusterAdvertisement
 	requests map[string]string
-	mux sync.Mutex
+	mux      sync.Mutex
 }
 
 func NewAgentWorker() (agent.Worker, error) {
@@ -32,11 +32,11 @@ func NewAgentWorker() (agent.Worker, error) {
 
 func (c *client) Start() {
 	for i := 0; i < numCells; i++ {
-		c.updateRequest(&warden.ClusterAdvertisement {
-			ClusterId: agent.GetWord(string(rune('a' + i))),
+		c.updateRequest(&warden.ClusterAdvertisement{
+			ClusterId:   agent.GetWord(string(rune('a' + i))),
 			ClusterType: clusterType,
-			State: warden.ClusterAdvertisement_AVAILABLE,
-			HeadNodeIP: "1.2.3.4",
+			State:       warden.ClusterAdvertisement_AVAILABLE,
+			HeadNodeIP:  "1.2.3.4",
 		})
 	}
 }
@@ -84,13 +84,13 @@ func (c *client) Handle(req *warden.ClusterRequest) {
 			return
 		}
 		ad.ReservationInfo = &warden.ClusterAdvertisement_ReservationInfo{
-			UserName: req.Spec.UserName,
-			Duration: req.Duration,
-			ReservationStartTime: uint32(time.Now().Unix()),
+			UserName:             req.Spec.UserName,
+			Duration:             req.Duration,
+			ReservationStartTime: time.Now().Unix(),
 		}
 		ad.Nodes = make([]*warden.ClusterAdvertisement_ClusterNode, req.Spec.ControllerNodes)
 		for i := range ad.Nodes {
-			id := uint32(i+1)
+			id := uint32(i + 1)
 			ip := make(net.IP, 4)
 			binary.BigEndian.PutUint32(ip, id)
 			ad.Nodes[i] = &warden.ClusterAdvertisement_ClusterNode{
@@ -100,7 +100,7 @@ func (c *client) Handle(req *warden.ClusterRequest) {
 		}
 		go func(a warden.ClusterAdvertisement) {
 			// update a copy after 5 seconds to simulate provisioning
-			time.Sleep(10*time.Second)
+			time.Sleep(5 * time.Second)
 			a.State = warden.ClusterAdvertisement_READY
 			c.updateRequest(&a)
 		}(ad)

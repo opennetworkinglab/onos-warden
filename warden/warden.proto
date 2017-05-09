@@ -29,9 +29,10 @@ package warden;
 message ClusterRequest {
     string requestId = 1;
     enum RequestType {
-        RESERVE = 0;
-        RETURN = 1;
-        EXTEND = 2;
+        STATUS = 0;
+        RESERVE = 1;
+        RETURN = 2;
+        EXTEND = 3;
     }
     RequestType type = 2;
     int32 duration = 3; // minutes (-1 is indefinite, 0 is default duration)
@@ -70,11 +71,13 @@ message ClusterAdvertisement {
     message ReservationInfo {
         string userName = 1;
         int32 duration = 2; // minutes
-        //FIXME change to int64 to avoid 2038 problem
-        uint32 reservationStartTime = 3; // seconds since epoch
+        int64 reservationStartTime = 3; // seconds since epoch
     }
     ReservationInfo reservationInfo = 7; // current reservation info, if reserved
 }
+
+//FIXME replace with import "google/protobuf/empty.proto";
+message Empty {}
 
 // Service for exchanging information between the server and the agent(s)
 service ClusterAgentService {
@@ -85,8 +88,12 @@ service ClusterAgentService {
 
 // Service for exchanging information between the client(s) and the server
 service ClusterClientService {
+    // Makes a single request to reserve, extend or return a cluster
+    rpc request (ClusterRequest) returns (ClusterAdvertisement) {}
+    // Returns a stream of all available clusters (this is a snapshot, not an update stream)
+    rpc list (Empty) returns (stream ClusterAdvertisement) {}
+
     // Bi-directional stream where the client makes cluster resource requests
     // to the server and the server sends cluster resource advertisements to the client
-    rpc serverClusters (stream ClusterRequest) returns (stream ClusterAdvertisement) {
-    }
+    rpc serverClusters (stream ClusterRequest) returns (stream ClusterAdvertisement) {}
 }

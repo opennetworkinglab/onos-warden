@@ -1,0 +1,3 @@
+Building the dummy agent:
+bazel build --strategy=GoAsmCompile=standalone  //agent/dummy:dummy
+ln -s ../bazel-genfiles/warden/warden.pb.go warden.pb.go
