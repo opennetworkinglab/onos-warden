@@ -51,6 +51,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         button = statusItem.button
         if button != nil {
             button?.image = NSImage(named: "Image")
+            button?.image?.isTemplate = true
             button?.action = #selector(AppDelegate.togglePopover(_:))
         }
         
@@ -277,6 +278,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     func setHaveReservation(_ value: Bool) {
         hadReservation = value
         button?.image = NSImage(named: value ? "Image-Reservation" : "Image")
+        button?.image?.isTemplate = true
     }
 
     // Issues a web-request against the specified URL
