@@ -24,11 +24,13 @@ sudo chmod 700 /var/lib/lxc
 
 sudo lxc-start -d -n $name
 
-for t in 1..5; do
+# Wait up to 10 seconds for the container to start up.
+for t in 1..10; do
     sudo lxc-info -n $name | grep RUNNING && break;
     sleep 1
 done
 
+# Validate that we're indeed running; else bomb-out.
 sudo lxc-attach -n $name -- ping -c1 8.8.8.8
 sudo lxc-attach -n $name -- bash -c "echo $key >> /home/sdn/.ssh/authorized_keys"
 sudo lxc-attach -n $name -- bash -c "sed -i \"s/127.0.1.1.*/127.0.1.1   $name/\" /etc/hosts"
