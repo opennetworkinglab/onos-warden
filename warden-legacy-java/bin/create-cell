@@ -16,13 +16,11 @@ ssh 10.128.11.1 "grep -qF \"$key\" /home/sdn/.ssh/authorized_keys || echo $key >
 
 if [ $mininet -ge 1 ]; then
     ./clone-node base-mininet ${ipx/x/0} $name-n "$key" &
-    sleep 1
 fi
 
 let n=1
 while [ $n -le $nodes ]; do
     ./clone-node base-onos ${ipx/x/$n} $name-$n "$key" &
-    sleep 1
     let n=n+1
 done
 
