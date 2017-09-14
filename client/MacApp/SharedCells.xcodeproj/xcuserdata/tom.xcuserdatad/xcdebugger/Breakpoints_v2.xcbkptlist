@@ -26,12 +26,12 @@
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "SharedCells/AppDelegate.swift"
-            timestampString = "520988510.850273"
+            timestampString = "527120186.168667"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "51"
-            endingLineNumber = "51"
-            landmarkName = "applicationDidFinishLaunching(_:)"
+            startingLineNumber = "127"
+            endingLineNumber = "127"
+            landmarkName = "launchGUI(_:)"
             landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>

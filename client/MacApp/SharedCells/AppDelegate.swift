@@ -7,6 +7,7 @@
 //
 
 import Cocoa
+
 fileprivate func < <T : Comparable>(lhs: T?, rhs: T?) -> Bool {
   switch (lhs, rhs) {
   case let (l?, r?):
@@ -45,6 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     var hadReservation = false
     var pendingAction = false
     var cellsTableController: SharedCellsViewController?
+    var cellHost: String?
 
     // Start-up hook
     func applicationDidFinishLaunching(_ aNotification: Notification) {
@@ -59,6 +61,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "View Cells", action: #selector(viewCells(_:)), keyEquivalent: "s"))
+        menu.addItem(NSMenuItem(title: "ONOS GUI", action: #selector(launchGUI(_:)), keyEquivalent: "g"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Borrow Standard Cell", action: #selector(borrow31Cell), keyEquivalent: "b"))
         
@@ -81,8 +84,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         menu.addItem(NSMenuItem(title: "Return Cell", action: #selector(returnCell(_:)), keyEquivalent: "r"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate), keyEquivalent: "q"))
+
+        menu.autoenablesItems = false
         statusItem.menu = menu
         
+        forgetCellHost()
+
         center.delegate = self
         cellsTableController = popover.contentViewController as? SharedCellsViewController
         
@@ -109,9 +116,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     // Obtains data on cell status and displays it in a pop-up window
     func viewCells(_ sender: AnyObject?) {
         request("\(wardenUrl)/data", method: "GET", stringData: nil, callback: updatePopover, errorCallback: {
-            self.showNotification("Unable to query cells", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+            _ = self.showNotification("Unable to query cells", text: "Please connect to the ONF VPN", action: nil, sound: false)
         })
         showPopover(self)
+    }
+    
+    // Opens the ONOS GUI in the default browser
+    func launchGUI(_ sender: AnyObject?) {
+        if self.cellHost != nil {
+            if let url = URL(string: "http://\(cellHost!):8181/onos/ui"), NSWorkspace.shared().open(url) {
+                print("ONOS GUI launched")
+            }
+        }
     }
     
     func borrow11Cell() { borrowCell("1%2B1") }
@@ -125,30 +141,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     
     // Borrows cell, or extends existing reservation, for the user and for default number of minutes into the future
     func borrowCell(_ cellSpec: String) {
-        self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil, sound: false)
+        _ = self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil, sound: false)
         pendingAction = true
         request("\(wardenUrl)?duration=\(defaultDurationMinutes)&user=\(username)&spec=\(cellSpec)", method: "POST",
                 stringData: userKey()! as String, callback: { response in
-            self.notification = self.showNotification("Cell is allocated and ready",
+                    self.notification = self.showNotification("Cell is allocated and ready",
                                                      text: "Reservation is valid for \(self.defaultDurationMinutes) minutes", action: nil, sound: false)
-            self.scheduleNotificationDismissal()
-            self.pendingAction = false
+                    self.scheduleNotificationDismissal()
+                    self.learnCellHost(response)
+                    self.pendingAction = false
             }, errorCallback: {
-                self.showNotification("Unable to borrow cell", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+                _ = self.showNotification("Unable to borrow cell", text: "Please connect to the ONF VPN", action: nil, sound: false)
             })
     }
 
     // Returns cell currently leased by the user
     func returnCell(_ sender: AnyObject?) {
         pendingAction = true
-        self.setHaveReservation(false)
-        self.showNotification("Returning cell", text: "Tearing down the environment", action: nil, sound: false)
+        setHaveReservation(false)
+        forgetCellHost()
+
+        _ = self.showNotification("Returning cell", text: "Tearing down the environment", action: nil, sound: false)
         request("\(wardenUrl)?user=\(username)", method: "DELETE", stringData: nil, callback: { response in
             self.notification = self.showNotification("Cell returned", text: "Thank you for cleaning up!", action: nil, sound: false)
             self.scheduleNotificationDismissal()
             self.pendingAction = false
             }, errorCallback: {
-                self.showNotification("Unable to return cell", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+                _ = self.showNotification("Unable to return cell", text: "Please connect to the ONF VPN", action: nil, sound: false)
             })
     }
 
@@ -156,11 +175,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     func extendLease() {
         request("\(wardenUrl)?duration=\(defaultDurationMinutes)&user=\(username)", method: "POST",
                 stringData: userKey()! as String, callback: { response in
-            self.notification = self.showNotification("Cell lease extended", text: "Reservation is valid for \(self.defaultDurationMinutes) minutes", action: nil, sound: false)
-            self.scheduleNotificationDismissal()
+                    self.notification = self.showNotification("Cell lease extended", text: "Reservation is valid for \(self.defaultDurationMinutes) minutes", action: nil, sound: false)
+                    self.scheduleNotificationDismissal()
+                    self.learnCellHost(response)
             }, errorCallback: {
-                self.showNotification("Unable to extend lease", text: "Please connect to the ON.Lab VPN", action: nil, sound: false)
+                _ = self.showNotification("Unable to extend lease", text: "Please connect to the ONF VPN", action: nil, sound: false)
             })
+    }
+    
+    // Learns the cell host from the given cell request response
+    func learnCellHost(_ response: NSString) {
+        let start = response.range(of: "export OC1=")
+        let rest = NSString(string: response.substring(from: start.location + start.length))
+        let end = rest.range(of: "\n")
+        self.cellHost = rest.substring(to: end.location - 1)
+        statusItem.menu?.item(at: 1)?.isEnabled = true
+    }
+    
+    // Forgets the cell host and disables ONOS GUI item
+    func forgetCellHost() {
+        cellHost = nil
+        statusItem.menu?.item(at: 1)?.isEnabled = false
+    }
+    
+    // Requests cell definition to learn the cell host
+    func requestCellHost() {
+        if cellHost == nil {
+            self.request("\(wardenUrl)?duration=0&user=\(username)", method: "POST",
+                         stringData: userKey()! as String, callback: { response in
+                    self.learnCellHost(response)
+            }, errorCallback: {})
+        }
     }
     
     // Extracts the user's public key from the ~/.ssh folder.
@@ -245,32 +290,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     // If expiration is imminent, it allows user to extend the reservation.
     func checkForExpiration() {
         request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
-            let record = data.trimmingCharacters(in: CharacterSet.newlines)
-            let userHasReservation = !record.hasPrefix("null")
-            if userHasReservation {
-                var fields = record.components(separatedBy: ",")
-                let remaining = fields.count > 3 ? Int(fields[3]) : 0
-                if remaining != nil && remaining < self.warnMinutes && !self.pendingAction {
-                    self.showNotification("Cell reservation is about to expire",
-                        text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
-                } else if remaining != nil && !self.hadReservation && !self.pendingAction {
-                    self.notification = self.showNotification("Cell is allocated and ready",
-                        text: "Reservation is valid for \(remaining!) minutes", action: nil, sound: false)
-                    self.scheduleNotificationDismissal()
-                }
+                let record = data.trimmingCharacters(in: CharacterSet.newlines)
+                let userHasReservation = !record.hasPrefix("null")
+                if userHasReservation {
+                    var fields = record.components(separatedBy: ",")
+                    let remaining = fields.count > 3 ? Int(fields[3]) : 0
+                    if remaining != nil && remaining < self.warnMinutes && !self.pendingAction {
+                        _ = self.showNotification("Cell reservation is about to expire",
+                                                  text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
+                    } else if remaining != nil && !self.hadReservation && !self.pendingAction {
+                        self.notification = self.showNotification("Cell is allocated and ready",
+                                                                  text: "Reservation is valid for \(remaining!) minutes", action: nil, sound: false)
+                        self.scheduleNotificationDismissal()
+                    }
+                    self.requestCellHost();
                 
-            } else if self.hadReservation {
-                self.showNotification("Cell reservation expired", text: "The cell has been returned", action: nil, sound: true)
-            }
-            self.setHaveReservation(userHasReservation)
+                } else if self.hadReservation {
+                    self.forgetCellHost()
+                    _ = self.showNotification("Cell reservation expired", text: "The cell has been returned", action: nil, sound: true)
+                }
+                self.setHaveReservation(userHasReservation)
             }, errorCallback: {})
     }
 
     // Checks the current reservation status.
     func checkStatus() {
         request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
-            let record = data.trimmingCharacters(in: CharacterSet.newlines)
-            self.setHaveReservation(!record.hasPrefix("null"))
+                let record = data.trimmingCharacters(in: CharacterSet.newlines)
+                let userHasReservation = !record.hasPrefix("null")
+                self.setHaveReservation(userHasReservation)
+                if userHasReservation {
+                    self.requestCellHost();
+                }
             }, errorCallback: {})
     }
     
@@ -289,13 +340,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         request.httpBody = stringData?.data(using: String.Encoding.utf8)
         let task = URLSession.shared.dataTask(with: request as URLRequest, completionHandler: { data, response, error in
             guard error == nil && data != nil else {
-                print("error = \(error)")
+                print("error = \(String(describing: error))")
                 errorCallback()
                 // self.button?.image = NSImage(named: "Image-Offline")
                 return
             }
             if let httpStatus = response as? HTTPURLResponse , httpStatus.statusCode != 200 {
-                print("status = \(httpStatus.statusCode)\nresponse = \(response)")
+                print("status = \(httpStatus.statusCode)\nresponse = \(String(describing: response))")
             }
             
             callback(NSString(data: data!, encoding: String.Encoding.utf8.rawValue)!)
