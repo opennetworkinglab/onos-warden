@@ -33,7 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     
     let username = NSUserName()
     let center = NSUserNotificationCenter.default
-    let statusItem = NSStatusBar.system().statusItem(withLength: -2)
+    let statusItem = NSStatusBar.system.statusItem(withLength: -2)
     let popover = NSPopover()
 
     var button: NSStatusBarButton?
@@ -52,12 +52,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         button = statusItem.button
         if button != nil {
-            button?.image = NSImage(named: "Image")
+            button?.image = NSImage(named: NSImage.Name(rawValue: "Image"))
             button?.image?.isTemplate = true
             button?.action = #selector(AppDelegate.togglePopover(_:))
         }
         
-        popover.contentViewController = SharedCellsViewController(nibName: "SharedCellsViewController", bundle: nil)
+        popover.contentViewController = SharedCellsViewController(nibName: NSNib.Name(rawValue: "SharedCellsViewController"), bundle: nil)
         
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "View Cells", action: #selector(viewCells(_:)), keyEquivalent: "s"))
@@ -97,7 +97,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
                                                        selector: #selector(checkForExpiration),
                                                        userInfo: nil, repeats: true)
         
-        eventMonitor = EventMonitor(mask: [.leftMouseDown, .rightMouseDown]) { [unowned self] event in
+        eventMonitor = EventMonitor(mask: [NSEvent.EventTypeMask.leftMouseDown, NSEvent.EventTypeMask.rightMouseDown]) { [unowned self] event in
             if self.popover.isShown {
                 self.closePopover(event)
             }
@@ -114,7 +114,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     }
 
     // Obtains data on cell status and displays it in a pop-up window
-    func viewCells(_ sender: AnyObject?) {
+    @objc func viewCells(_ sender: AnyObject?) {
         request("\(wardenUrl)/data", method: "GET", stringData: nil, callback: updatePopover, errorCallback: {
             _ = self.showNotification("Unable to query cells", text: "Please connect to the ONF VPN", action: nil, sound: false)
         })
@@ -122,22 +122,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     }
     
     // Opens the ONOS GUI in the default browser
-    func launchGUI(_ sender: AnyObject?) {
+    @objc func launchGUI(_ sender: AnyObject?) {
         if self.cellHost != nil {
-            if let url = URL(string: "http://\(cellHost!):8181/onos/ui"), NSWorkspace.shared().open(url) {
+            if let url = URL(string: "http://\(cellHost!):8181/onos/ui"), NSWorkspace.shared.open(url) {
                 print("ONOS GUI launched")
             }
         }
     }
     
-    func borrow11Cell() { borrowCell("1%2B1") }
-    func borrow31Cell() { borrowCell("3%2B1") }
-    func borrow51Cell() { borrowCell("5%2B1") }
-    func borrow71Cell() { borrowCell("7%2B1") }
-    func borrow10Cell() { borrowCell("1%2B0") }
-    func borrow30Cell() { borrowCell("3%2B0") }
-    func borrow50Cell() { borrowCell("5%2B0") }
-    func borrow70Cell() { borrowCell("7%2B0") }
+    @objc func borrow11Cell() { borrowCell("1%2B1") }
+    @objc func borrow31Cell() { borrowCell("3%2B1") }
+    @objc func borrow51Cell() { borrowCell("5%2B1") }
+    @objc func borrow71Cell() { borrowCell("7%2B1") }
+    @objc func borrow10Cell() { borrowCell("1%2B0") }
+    @objc func borrow30Cell() { borrowCell("3%2B0") }
+    @objc func borrow50Cell() { borrowCell("5%2B0") }
+    @objc func borrow70Cell() { borrowCell("7%2B0") }
     
     // Borrows cell, or extends existing reservation, for the user and for default number of minutes into the future
     func borrowCell(_ cellSpec: String) {
@@ -156,7 +156,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     }
 
     // Returns cell currently leased by the user
-    func returnCell(_ sender: AnyObject?) {
+    @objc func returnCell(_ sender: AnyObject?) {
         pendingAction = true
         setHaveReservation(false)
         forgetCellHost()
@@ -229,13 +229,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         eventMonitor?.start()
     }
 
-    func closePopover(_ sender: AnyObject?) {
+    @objc func closePopover(_ sender: AnyObject?) {
         closeTimer?.invalidate()
         popover.performClose(sender)
         eventMonitor?.stop()
     }
 
-    func togglePopover(_ sender: AnyObject?) {
+    @objc func togglePopover(_ sender: AnyObject?) {
         if popover.isShown {
             closePopover(sender)
         } else {
@@ -250,7 +250,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     }
     
     // Dismisses a notification if there is one pending.
-    func dismissNotification() {
+    @objc func dismissNotification() {
         if notification != nil {
             center.removeDeliveredNotification(notification!)
         }
@@ -288,7 +288,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     
     // Checks the current reservation for impending expiration.
     // If expiration is imminent, it allows user to extend the reservation.
-    func checkForExpiration() {
+    @objc func checkForExpiration() {
         request("\(wardenUrl)/data?user=\(username)", method: "GET", stringData: nil, callback: { (data) in
                 let record = data.trimmingCharacters(in: CharacterSet.newlines)
                 let userHasReservation = !record.hasPrefix("null")
@@ -328,7 +328,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     // Sets the indicator and internal state to indicate presence of absence of an active reservation
     func setHaveReservation(_ value: Bool) {
         hadReservation = value
-        button?.image = NSImage(named: value ? "Image-Reservation" : "Image")
+        button?.image = NSImage(named: NSImage.Name(rawValue: value ? "Image-Reservation" : "Image"))
         button?.image?.isTemplate = true
     }
 
