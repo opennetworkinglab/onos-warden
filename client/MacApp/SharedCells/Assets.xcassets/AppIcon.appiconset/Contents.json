@@ -1,9 +1,8 @@
 {
   "images" : [
     {
-      "size" : "16x16",
       "idiom" : "mac",
-      "filename" : "cells.32-1.png",
+      "size" : "16x16",
       "scale" : "1x"
     },
     {
@@ -13,9 +12,8 @@
       "scale" : "2x"
     },
     {
-      "size" : "32x32",
       "idiom" : "mac",
-      "filename" : "cells.64-1.png",
+      "size" : "32x32",
       "scale" : "1x"
     },
     {
@@ -27,37 +25,34 @@
     {
       "size" : "128x128",
       "idiom" : "mac",
-      "filename" : "cells.256-1.png",
+      "filename" : "cells.128.png",
       "scale" : "1x"
     },
     {
       "size" : "128x128",
       "idiom" : "mac",
-      "filename" : "cells.128.png",
-      "scale" : "2x"
-    },
-    {
-      "size" : "256x256",
-      "idiom" : "mac",
-      "filename" : "cells.512-2.png",
-      "scale" : "1x"
-    },
-    {
-      "size" : "256x256",
-      "idiom" : "mac",
       "filename" : "cells.256.png",
       "scale" : "2x"
     },
     {
-      "size" : "512x512",
       "idiom" : "mac",
-      "filename" : "cells.512-1.png",
+      "size" : "256x256",
       "scale" : "1x"
     },
     {
-      "size" : "512x512",
+      "size" : "256x256",
       "idiom" : "mac",
       "filename" : "cells.512.png",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "mac",
+      "size" : "512x512",
+      "scale" : "1x"
+    },
+    {
+      "idiom" : "mac",
+      "size" : "512x512",
       "scale" : "2x"
     }
   ],
