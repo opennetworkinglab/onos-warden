@@ -190,12 +190,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         let end = rest.range(of: "\n")
         self.cellHost = rest.substring(to: end.location - 1)
         statusItem.menu?.item(at: 1)?.isEnabled = true
+        statusItem.menu?.item(at: 3)?.title = "Renew Cell Reservation"
     }
     
     // Forgets the cell host and disables ONOS GUI item
     func forgetCellHost() {
         cellHost = nil
         statusItem.menu?.item(at: 1)?.isEnabled = false
+        statusItem.menu?.item(at: 3)?.title = "Borrow Standard Cell"
     }
     
     // Requests cell definition to learn the cell host
