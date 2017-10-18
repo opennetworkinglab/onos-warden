@@ -191,6 +191,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         self.cellHost = rest.substring(to: end.location - 1)
         statusItem.menu?.item(at: 1)?.isEnabled = true
         statusItem.menu?.item(at: 3)?.title = "Renew Cell Reservation"
+        statusItem.menu?.item(at: 4)?.isEnabled = false
+        statusItem.menu?.item(at: 6)?.isEnabled = true
     }
     
     // Forgets the cell host and disables ONOS GUI item
@@ -198,6 +200,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         cellHost = nil
         statusItem.menu?.item(at: 1)?.isEnabled = false
         statusItem.menu?.item(at: 3)?.title = "Borrow Standard Cell"
+        statusItem.menu?.item(at: 4)?.isEnabled = true
+        statusItem.menu?.item(at: 6)?.isEnabled = false
     }
     
     // Requests cell definition to learn the cell host
