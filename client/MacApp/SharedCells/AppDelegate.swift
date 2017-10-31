@@ -73,11 +73,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         subMenu.addItem(NSMenuItem(title: "Borrow 3+1 Cell", action: #selector(borrow31Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem(title: "Borrow 5+1 Cell", action: #selector(borrow51Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem(title: "Borrow 7+1 Cell", action: #selector(borrow71Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 9+1 Cell", action: #selector(borrow91Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem.separator())
         subMenu.addItem(NSMenuItem(title: "Borrow 1+0 Cell", action: #selector(borrow10Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem(title: "Borrow 3+0 Cell", action: #selector(borrow30Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem(title: "Borrow 5+0 Cell", action: #selector(borrow50Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem(title: "Borrow 7+0 Cell", action: #selector(borrow70Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 9+0 Cell", action: #selector(borrow90Cell), keyEquivalent: ""))
         menu.setSubmenu(subMenu, for: subMenuItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -134,11 +136,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     @objc func borrow31Cell() { borrowCell("3%2B1") }
     @objc func borrow51Cell() { borrowCell("5%2B1") }
     @objc func borrow71Cell() { borrowCell("7%2B1") }
+    @objc func borrow91Cell() { borrowCell("9%2B1") }
     @objc func borrow10Cell() { borrowCell("1%2B0") }
     @objc func borrow30Cell() { borrowCell("3%2B0") }
     @objc func borrow50Cell() { borrowCell("5%2B0") }
     @objc func borrow70Cell() { borrowCell("7%2B0") }
-    
+    @objc func borrow90Cell() { borrowCell("9%2B0") }
+
     // Borrows cell, or extends existing reservation, for the user and for default number of minutes into the future
     func borrowCell(_ cellSpec: String) {
         _ = self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil, sound: false)
