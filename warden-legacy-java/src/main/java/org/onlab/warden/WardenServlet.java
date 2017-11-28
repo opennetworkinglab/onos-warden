@@ -127,6 +127,25 @@ public class WardenServlet extends HttpServlet {
     }
 
     @Override
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp)
+            throws ServletException, IOException {
+        try (PrintWriter out = resp.getWriter()) {
+            String userName = req.getParameter("user");
+            String cmd = req.getParameter("cmd");
+            String response = "";
+            switch (cmd) {
+                case "powerOn": response = warden.powerControl(userName, req.getParameter("nodeIp"), true); break;
+                case "powerOff": response = warden.powerControl(userName, req.getParameter("nodeIp"), false); break;
+            }
+            out.println(response);
+
+        } catch (Exception e) {
+            resp.setStatus(Response.SC_INTERNAL_SERVER_ERROR);
+            e.printStackTrace();
+        }
+    }
+
+    @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try (PrintWriter out = resp.getWriter()) {

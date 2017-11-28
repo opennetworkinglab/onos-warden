@@ -262,6 +262,24 @@ class Warden {
     }
 
     /**
+     * Powers on/off the specified machine.
+     *
+     * @param userName user name (used for verification)
+     * @param nodeIp   IP of the node to shutdown
+     * @param on       true if node is to be powered on; false to power off
+     * @return summary of the command success or error
+     */
+    String powerControl(String userName, String nodeIp, boolean on) {
+        checkNotNull(userName, USER_NOT_NULL);
+        Reservation reservation = currentUserReservation(userName);
+        checkState(reservation != null, "User %s has no cell reservations", userName);
+
+        CellInfo cellInfo = getCellInfo(reservation.cellName);
+        return exec(String.format("%s %s warden/bin/power-node %s %s %s", SSH_COMMAND,
+                                  cellInfo.hostName, cellInfo.cellName, nodeIp, on ? "on" : "off"));
+    }
+
+    /**
      * Reserves the specified cell for the user the source file and writes the
      * specified content to the target file.
      *

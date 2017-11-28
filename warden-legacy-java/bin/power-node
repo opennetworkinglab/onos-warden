@@ -1,0 +1,28 @@
+#!/bin/bash
+# Powers on/off an LXC node with the specified IP address.
+
+cellName=$1
+ip=$2
+cmd=$3
+
+if [ $cmd = "off" ]; then
+    name=$(sudo lxc-ls --fancy | grep $cellName | grep RUNNING | grep $ip | cut -d\  -f1)
+    [ -z "$name" ] && echo "Node with IP $ip not found or is already stopped" && exit 0
+    if sudo lxc-stop -n $name; then
+        echo "Node $ip powered off"
+    else
+        echo "Failed to power off node $ip"
+    fi
+
+elif [ $cmd = "on" ]; then
+    name=$(sudo lxc-ls --fancy | grep $cellName | grep STOPPED | cut -d\  -f1)
+    [ -z "$name" ] && echo "Node with IP $ip not found or is already running" && exit 0
+    if sudo lxc-start -d -n $name; then
+        echo "Node $ip powered on"
+    else
+        echo "Failed to power on node $ip"
+    fi
+
+else
+    echo "I can only power on or off"
+fi
