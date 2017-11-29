@@ -180,6 +180,7 @@ class Warden {
         checkArgument(cellSpec == null || cellSpec.matches("[\\d]\\+[0-1]"),
                       "Invalid cell spec string %s", cellSpec);
         Reservation reservation = currentUserReservation(userName);
+        boolean alreadyReserved = reservation != null;
         if (reservation == null) {
             // If there is no reservation for the user, create one
             String cellName = findAvailableCell(cellNameHint);
@@ -197,7 +198,9 @@ class Warden {
         }
 
         reserveCell(reservation);
-        createCell(reservation, sshKey);
+        if (!alreadyReserved) {
+            createCell(reservation, sshKey);
+        }
         log(userName, reservation.cellName, reservation.cellSpec,
             "borrowed for " + reservation.duration + " minutes");
         return getCellDefinition(reservation.cellName);
