@@ -7,15 +7,15 @@ name="$3"
 shift 3
 key="$@"
 
-sudo lxc-copy -n $base -N $name
+sudo lxc-copy -n $base -N $name --fssize 10 G
 
 sudo chmod 777 /var/lib/lxc
 sudo chmod 777 /var/lib/lxc/$name
 sudo chmod 666 /var/lib/lxc/$name/config
 
 sudo cat >>/var/lib/lxc/$name/config <<EOF
-lxc.network.ipv4 = ${ip}/16
-lxc.network.ipv4.gateway = 10.128.0.1
+lxc.network.ipv4 = ${ip}/24
+lxc.network.ipv4.gateway = 10.192.19.1
 EOF
 
 sudo chmod 644 /var/lib/lxc/$name/config

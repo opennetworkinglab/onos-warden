@@ -25,7 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
 
     @IBOutlet weak var window: NSWindow!
 
-    let wardenUrl = "http://10.254.1.19:4321/"
+    let wardenUrl = "http://10.192.19.72:4321/"
     let pollSeconds = 30.0
     let showSeconds = 15.0
     let warnMinutes = 5
