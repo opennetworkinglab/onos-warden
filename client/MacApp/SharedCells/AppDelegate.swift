@@ -275,6 +275,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         notification.hasActionButton = action != nil
         if notification.hasActionButton {
             notification.actionButtonTitle = action!
+            notification.otherButtonTitle = "Return"
         }
         if sound {
             notification.soundName = NSUserNotificationDefaultSoundName
@@ -289,6 +290,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         return true
     }
 
+    @objc(userNotificationCenter:didDeliverNotification:) func userNotificationCenter(_ center: NSUserNotificationCenter, didDeliver notification: NSUserNotification) {
+        if hadReservation {
+            returnCell(self)
+        }
+    }
+    
     // Delegate callback for the user notification action.
     func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
         if notification.activationType == .actionButtonClicked {
@@ -307,7 +314,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
                     let remaining = fields.count > 3 ? Int(fields[3]) : 0
                     if remaining != nil && remaining < self.warnMinutes && !self.pendingAction {
                         _ = self.showNotification("Cell reservation is about to expire",
-                                                  text: "You have less than \(remaining! + 1) minutes left", action: "Extend", sound: true)
+                                                  text: "You have less than \(remaining!) minutes left", action: "Extend", sound: true)
                     } else if remaining != nil && !self.hadReservation && !self.pendingAction {
                         self.notification = self.showNotification("Cell is allocated and ready",
                                                                   text: "Reservation is valid for \(remaining!) minutes", action: nil, sound: false)
