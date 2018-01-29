@@ -12,7 +12,7 @@ cd $(dirname $0)
 nodes=${spec%+*}
 mininet=${spec#*+}
 
-ssh 10.192.19.200 "grep -qF \"$key\" /home/sdn/.ssh/authorized_keys || echo $key >> /home/sdn/.ssh/authorized_keys"
+ssh 10.192.19.220 "grep -qF \"$key\" /home/sdn/.ssh/authorized_keys || echo $key >> /home/sdn/.ssh/authorized_keys"
 
 if [ $mininet -ge 1 ]; then
     ./clone-node base-mininet ${ipx/x/0} $name-n "$key" &

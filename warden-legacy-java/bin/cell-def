@@ -11,7 +11,7 @@ sudo lxc-ls -F "name,ipv4" --fancy | grep $name | \
     sed "s/^$name-/OC/" | tr "[:lower:]" "[:upper:]" | \
     sed -r 's/[ ]+/\=/;s/^/export /'
 
-echo "export OCT=\"10.192.19.200\""
+echo "export OCT=\"10.192.19.220\""
 echo "export ONOS_USER=sdn"
 echo "export ONOS_GROUP=sdn"
 echo "export ONOS_USE_SSH=true"
