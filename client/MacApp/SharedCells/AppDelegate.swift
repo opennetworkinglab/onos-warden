@@ -210,12 +210,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     
     // Requests cell definition to learn the cell host
     func requestCellHost() {
-        if cellHost == nil {
-            self.request("\(wardenUrl)?duration=0&user=\(username)", method: "POST",
-                         stringData: userKey()! as String, callback: { response in
-                    self.learnCellHost(response)
-            }, errorCallback: {})
-        }
+        self.request("\(wardenUrl)?duration=0&user=\(username)", method: "POST",
+                     stringData: userKey()! as String, callback: { response in
+                self.learnCellHost(response)
+        }, errorCallback: {})
     }
     
     // Extracts the user's public key from the ~/.ssh folder.
@@ -290,11 +288,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         return true
     }
 
-    @objc(userNotificationCenter:didDeliverNotification:) func userNotificationCenter(_ center: NSUserNotificationCenter, didDeliver notification: NSUserNotification) {
-        if hadReservation {
-            returnCell(self)
-        }
-    }
+    // FIXME: This returns the cell on dismissal of notifications which we don't want.
+//    @objc(userNotificationCenter:didDeliverNotification:) func userNotificationCenter(_ center: NSUserNotificationCenter, didDeliver notification: NSUserNotification) {
+//        if hadReservation {
+//            returnCell(self)
+//        }
+//    }
     
     // Delegate callback for the user notification action.
     func userNotificationCenter(_ center: NSUserNotificationCenter, didActivate notification: NSUserNotification) {
