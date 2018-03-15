@@ -9,7 +9,8 @@ echo "export ONOS_NIC=\"10.192.19.*\""
 
 sudo lxc-ls -F "name,ipv4" --fancy | grep $name | \
     sed "s/^$name-/OC/" | tr "[:lower:]" "[:upper:]" | \
-    sed -r 's/[ ]+/\=/;s/^/export /'
+    sed -r 's/[ ]+/\=/;s/^/export /' | \
+    sed 's/,.*//'
 
 echo "export OCT=\"10.192.19.220\""
 echo "export ONOS_USER=sdn"
