@@ -96,7 +96,7 @@ public class WardenServlet extends HttpServlet {
             if (reservation != null) {
                 long expiration = reservation.time + reservation.duration * 60_000;
                 long remaining = (expiration - System.currentTimeMillis()) / 60_000;
-                out.println(String.format("%-14s\t%-10s\t%s\t%s\t%s mins (%s remaining)",
+                out.println(String.format("%-14s\t%-25s\t%s\t%s\t%s mins (%s remaining)",
                                           cellName + "-" + reservation.cellSpec,
                                           reservation.userName,
                                           fmt.format(new Date(reservation.time)),
