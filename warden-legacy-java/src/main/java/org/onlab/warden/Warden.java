@@ -279,7 +279,7 @@ class Warden {
 
         CellInfo cellInfo = getCellInfo(reservation.cellName);
         log(userName, reservation.cellName, reservation.cellSpec,
-            nodeIp + " powered " + on ? "on" : "off");
+            nodeIp + " powered " + (on ? "on" : "off"));
         return exec(String.format("%s %s warden/bin/power-node %s %s %s", SSH_COMMAND,
                                   cellInfo.hostName, cellInfo.cellName, nodeIp, on ? "on" : "off"));
     }
