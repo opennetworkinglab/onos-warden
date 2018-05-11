@@ -15,7 +15,7 @@ if [ $cmd = "off" ]; then
     fi
 
 elif [ $cmd = "on" ]; then
-    name=$(sudo lxc-ls --fancy | grep $cellName | grep STOPPED | cut -d\  -f1)
+    name=$(sudo lxc-ls --fancy | grep $cellName | grep STOPPED | cut -d\  -f1 | head -1)
     [ -z "$name" ] && echo "Node with IP $ip not found or is already running" && exit 0
     if sudo lxc-start -d -n $name; then
         echo "Node $ip powered on"
