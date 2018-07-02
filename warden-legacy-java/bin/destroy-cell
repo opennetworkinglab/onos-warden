@@ -4,14 +4,24 @@
 name=$1
 spec=$2
 
-nodes=${spec%+*}
-mininet=${spec#*+}
+both=${spec%+*}
+nodes=${both%+*}
+cores=${both#*+}
+mininet=${spec##*+}
+
+[ $both = $nodes ] && cores=0
 
 cd $(dirname $0)
 
 if [ $mininet -ge 1 ]; then
     ./destroy-node $name-n &
 fi
+
+let n=1
+while [ $n -le $cores ]; do
+    ./destroy-node $name-c$n &
+    let n=n+1
+done
 
 let n=1
 while [ $n -le $nodes ]; do

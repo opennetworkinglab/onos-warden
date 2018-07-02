@@ -95,8 +95,19 @@ public class WardenTest {
         warden.borrowCell("dolt", "a-key", 30, null, null);
         validateSizes(5, 1);
 
+        warden.borrowCell("lad", "a-key", 30, "5+3+1", null);
+        validateSizes(4, 2);
+
         warden.returnCell("dolt");
+        validateSizes(5, 1);
+
+        warden.returnCell("lad");
         validateSizes(6, 0);
+    }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void borrowBadCell() {
+        warden.borrowCell("bad", "a-key", 30, "5+A+1", null);
     }
 
     private void validateSizes(int available, int reserved) {
