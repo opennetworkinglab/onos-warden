@@ -16,14 +16,11 @@
 
 package org.onlab.warden;
 
-import com.google.common.io.ByteStreams;
 import org.eclipse.jetty.server.Response;
 
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -31,6 +28,7 @@ import java.util.Date;
 import java.util.List;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static com.google.common.io.ByteStreams.toByteArray;
 
 /**
  * Web socket servlet capable of creating web sockets for the STC monitor.
@@ -42,8 +40,7 @@ public class WardenServlet extends HttpServlet {
     private SimpleDateFormat fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 
     @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) {
         resp.setContentType("text/plain; charset=UTF-8");
         try (PrintWriter out = resp.getWriter()) {
             if (req.getPathInfo().endsWith("data")) {
@@ -109,10 +106,9 @@ public class WardenServlet extends HttpServlet {
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) {
         try (PrintWriter out = resp.getWriter()) {
-            String sshKey = new String(ByteStreams.toByteArray(req.getInputStream()), "UTF-8");
+            String sshKey = new String(toByteArray(req.getInputStream()), "UTF-8");
             String userName = req.getParameter("user");
             String sd = req.getParameter("duration");
             String spec = req.getParameter("spec");
@@ -127,8 +123,7 @@ public class WardenServlet extends HttpServlet {
     }
 
     @Override
-    protected void doPut(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
+    protected void doPut(HttpServletRequest req, HttpServletResponse resp) {
         try (PrintWriter out = resp.getWriter()) {
             String userName = req.getParameter("user");
             String cmd = req.getParameter("cmd");
@@ -146,9 +141,8 @@ public class WardenServlet extends HttpServlet {
     }
 
     @Override
-    protected void doDelete(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        try (PrintWriter out = resp.getWriter()) {
+    protected void doDelete(HttpServletRequest req, HttpServletResponse resp) {
+        try {
             String userName = req.getParameter("user");
             warden.returnCell(userName);
         } catch (Exception e) {

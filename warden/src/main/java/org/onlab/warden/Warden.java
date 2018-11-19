@@ -19,7 +19,6 @@ package org.onlab.warden;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.io.ByteStreams;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,6 +39,8 @@ import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 import static com.google.common.base.Preconditions.*;
+import static com.google.common.io.ByteStreams.toByteArray;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Warden for tracking use of shared test cells.
@@ -49,7 +50,6 @@ class Warden {
     private static final String CELL_NOT_NULL = "Cell name cannot be null";
     private static final String USER_NOT_NULL = "User name cannot be null";
     private static final String KEY_NOT_NULL = "User key cannot be null";
-    private static final String UTF_8 = "UTF-8";
 
     private static final long TIMEOUT = 10; // 10 seconds
     private static final int MAX_MINUTES = 1_440; // 24 hours max
@@ -154,7 +154,7 @@ class Warden {
             return null;
         }
         try (InputStream stream = new FileInputStream(cellFile)) {
-            return new Reservation(new String(ByteStreams.toByteArray(stream), "UTF-8"));
+            return new Reservation(new String(toByteArray(stream), UTF_8));
         } catch (IOException e) {
             throw new IllegalStateException("Unable to get current user for cell " + cellName, e);
         }
@@ -355,7 +355,7 @@ class Warden {
     private CellInfo getCellInfo(String cellName) {
         File cellFile = new File(supported, cellName);
         try (InputStream stream = new FileInputStream(cellFile)) {
-            String[] fields = new String(ByteStreams.toByteArray(stream), UTF_8).split(" ");
+            String[] fields = new String(toByteArray(stream), UTF_8).split(" ");
             return new CellInfo(cellName, fields[0], fields[1]);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to definition for cell " + cellName, e);
@@ -366,7 +366,7 @@ class Warden {
     private String exec(String command) {
         try {
             Process process = Runtime.getRuntime().exec(cmdPrefix + command);
-            String output = new String(ByteStreams.toByteArray(process.getInputStream()), UTF_8);
+            String output = new String(toByteArray(process.getInputStream()), UTF_8);
             process.waitFor(TIMEOUT, TimeUnit.SECONDS);
             return process.exitValue() == 0 ? output : null;
         } catch (Exception e) {
@@ -403,7 +403,6 @@ class Warden {
     // Carrier of cell server information
     private final class ServerInfo {
         final String hostName;
-        boolean isAvailable = false;
         int load = 0;
         List<CellInfo> cells = Lists.newArrayList();
 
