@@ -110,8 +110,20 @@ class Warden {
      * @return list of cell names
      */
     Set<String> getReservedCells() {
-        String[] list = reserved.list();
-        return list != null ? ImmutableSet.copyOf(list) : ImmutableSet.of();
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+        File[] list = reserved.listFiles();
+        if (list == null) {
+            return ImmutableSet.of();
+        }
+
+        for (File f : list) {
+            if (f.isFile() && f.length() > 0) {
+                builder.add(f.getName());
+            } else if (f.delete()) {
+                System.out.println("Bad reservation file: " + f.getName());
+            }
+        }
+        return builder.build();
     }
 
     /**
@@ -151,6 +163,12 @@ class Warden {
         checkNotNull(cellName, CELL_NOT_NULL);
         File cellFile = new File(reserved, cellName);
         if (!cellFile.exists()) {
+            return null;
+        }
+        if (cellFile.length() == 0) {
+            if (cellFile.delete()) {
+                System.out.println("Bad reservation file: " + cellFile.getName());
+            }
             return null;
         }
         try (InputStream stream = new FileInputStream(cellFile)) {

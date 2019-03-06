@@ -63,23 +63,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
         menu.addItem(NSMenuItem(title: "View Cells", action: #selector(viewCells(_:)), keyEquivalent: "s"))
         menu.addItem(NSMenuItem(title: "ONOS GUI", action: #selector(launchGUI(_:)), keyEquivalent: "g"))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Borrow Standard Cell", action: #selector(borrow31Cell), keyEquivalent: "b"))
-        
+        menu.addItem(NSMenuItem(title: "Borrow Standard Cell", action: #selector(borrow531Cell), keyEquivalent: "b"))
         let subMenuItem = NSMenuItem(title: "Borrow Custom Cell", action: nil, keyEquivalent: "")
         menu.addItem(subMenuItem)
         
         let subMenu = NSMenu()
         subMenu.addItem(NSMenuItem(title: "Borrow 1+1 Cell", action: #selector(borrow11Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem(title: "Borrow 3+1 Cell", action: #selector(borrow31Cell), keyEquivalent: ""))
-        subMenu.addItem(NSMenuItem(title: "Borrow 5+1 Cell", action: #selector(borrow51Cell), keyEquivalent: ""))
-        subMenu.addItem(NSMenuItem(title: "Borrow 7+1 Cell", action: #selector(borrow71Cell), keyEquivalent: ""))
-        subMenu.addItem(NSMenuItem(title: "Borrow 9+1 Cell", action: #selector(borrow91Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 3+3+1 Cell", action: #selector(borrow331Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 5+3+1 Cell *", action: #selector(borrow531Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 7+3+1 Cell", action: #selector(borrow731Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 7+5+1 Cell", action: #selector(borrow751Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 9+3+1 Cell", action: #selector(borrow931Cell), keyEquivalent: ""))
         subMenu.addItem(NSMenuItem.separator())
         subMenu.addItem(NSMenuItem(title: "Borrow 1+0 Cell", action: #selector(borrow10Cell), keyEquivalent: ""))
-        subMenu.addItem(NSMenuItem(title: "Borrow 3+0 Cell", action: #selector(borrow30Cell), keyEquivalent: ""))
-        subMenu.addItem(NSMenuItem(title: "Borrow 5+0 Cell", action: #selector(borrow50Cell), keyEquivalent: ""))
-        subMenu.addItem(NSMenuItem(title: "Borrow 7+0 Cell", action: #selector(borrow70Cell), keyEquivalent: ""))
-        subMenu.addItem(NSMenuItem(title: "Borrow 9+0 Cell", action: #selector(borrow90Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 3+3+0 Cell", action: #selector(borrow330Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 5+3+0 Cell", action: #selector(borrow530Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 7+3+0 Cell", action: #selector(borrow730Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 7+5+0 Cell", action: #selector(borrow750Cell), keyEquivalent: ""))
+        subMenu.addItem(NSMenuItem(title: "Borrow 9+3+0 Cell", action: #selector(borrow930Cell), keyEquivalent: ""))
         menu.setSubmenu(subMenu, for: subMenuItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -134,15 +136,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSUserNotificationCenterDele
     
     @objc func borrow11Cell() { borrowCell("1%2B1") }
     @objc func borrow31Cell() { borrowCell("3%2B1") }
-    @objc func borrow51Cell() { borrowCell("5%2B1") }
-    @objc func borrow71Cell() { borrowCell("7%2B1") }
-    @objc func borrow91Cell() { borrowCell("9%2B1") }
+    @objc func borrow331Cell() { borrowCell("3%2B3%2B1") }
+    @objc func borrow531Cell() { borrowCell("5%2B3%2B1") }
+    @objc func borrow731Cell() { borrowCell("7%2B3%2B1") }
+    @objc func borrow751Cell() { borrowCell("7%2B5%2B1") }
+    @objc func borrow931Cell() { borrowCell("9%2B3%2B1") }
+
     @objc func borrow10Cell() { borrowCell("1%2B0") }
     @objc func borrow30Cell() { borrowCell("3%2B0") }
-    @objc func borrow50Cell() { borrowCell("5%2B0") }
-    @objc func borrow70Cell() { borrowCell("7%2B0") }
-    @objc func borrow90Cell() { borrowCell("9%2B0") }
+    @objc func borrow330Cell() { borrowCell("3%2B3%2B0") }
+    @objc func borrow530Cell() { borrowCell("5%2B3%2B0") }
+    @objc func borrow730Cell() { borrowCell("7%2B3%2B0") }
+    @objc func borrow750Cell() { borrowCell("7%2B5%2B0") }
+    @objc func borrow930Cell() { borrowCell("9%2B3%2B0") }
 
+    
     // Borrows cell, or extends existing reservation, for the user and for default number of minutes into the future
     func borrowCell(_ cellSpec: String) {
         _ = self.showNotification("Allocating cell", text: "Please wait for confirmation", action: nil, sound: false)
